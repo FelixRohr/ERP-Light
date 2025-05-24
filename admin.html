@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script>
+    async function updateDevice(deviceId) {
+      // Aus den Inputfeldern die aktualisierten Werte ermitteln
+      const inventory_number = document.getElementById(`inventory_number_${deviceId}`).value;
+      const user = document.getElementById(`user_${deviceId}`).value;
+      const checked_out_at = document.getElementById(`checked_out_at_${deviceId}`).value;
+      const checked_in_at = document.getElementById(`checked_in_at_${deviceId}`).value;
+      
+      const response = await fetch('/edit_device', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          id: deviceId,
+          inventory_number: inventory_number,
+          user: user,
+          checked_out_at: checked_out_at,
+          checked_in_at: checked_in_at
+        })
+      });
+      const result = await response.json();
+      alert(result.message);
+    }
+  </script>
+</head>
+<body>
+  <h2>Admin Dashboard</h2>
+  <a href="{{ url_for('logout') }}">Logout</a>
+  <table border="1" cellpadding="5" cellspacing="0">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Inventarnummer</th>
+        <th>User</th>
+        <th>Checked Out At</th>
+        <th>Checked In At</th>
+        <th>Signature</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for device in devices %}
+      <tr>
+        <td>{{ device["id"] }}</td>
+        <td>
+          <input type="text" id="inventory_number_{{ device['id'] }}" value="{{ device['inventory_number'] }}">
+        </td>
+        <td>
+          <input type="text" id="user_{{ device['id'] }}" value="{{ device['user'] if device['user'] else '' }}">
+        </td>
+        <td>
+          <input type="text" id="checked_out_at_{{ device['id'] }}" value="{{ device['checked_out_at'] if device['checked_out_at'] else '' }}">
+        </td>
+        <td>
+          <input type="text" id="checked_in_at_{{ device['id'] }}" value="{{ device['checked_in_at'] if device['checked_in_at'] else '' }}">
+        </td>
+        <td>
+            {% if device['signature'] %}
+              <img src="{{ device['signature'] }}" alt="Unterschrift" width="100">
+            {% else %}
+              Kein Bild
+            {% endif %}
+        </td>
+        <td>
+          <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
