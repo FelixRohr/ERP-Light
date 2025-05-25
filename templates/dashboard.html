@@ -4,29 +4,77 @@
   <meta charset="UTF-8">
   <title>User Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.0.0/signature_pad.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='js/signature_pad.min.js') }}"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       const canvas = document.getElementById("signatureCanvas");
-      window.signaturePad = new SignaturePad(canvas);
+      window.signaturePad = new SignaturePad(canvas, {
+         minWidth: 1,
+         maxWidth: 3,
+         penColor: "black"
+      });
+
+      function resizeCanvas() {
+          const rect = canvas.getBoundingClientRect();
+          const ratio = Math.max(window.devicePixelRatio || 1, 1);
+          canvas.width = rect.width * ratio;
+          canvas.height = rect.height * ratio;
+          canvas.style.width = rect.width + "px";
+          canvas.style.height = rect.height + "px";
+          const context = canvas.getContext("2d");
+          context.scale(ratio, ratio);
+          signaturePad.clear();
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      // Dynamische Statusprüfung beim Verlassen des Inventarnummer-Feldes
+      const inventoryInput = document.getElementById("inventory_number");
+      const actionButton = document.getElementById("actionButton");
+
+      async function checkDeviceStatus() {
+        const inventoryNumber = inventoryInput.value;
+        if (!inventoryNumber) {
+          actionButton.style.display = "none";
+          return;
+        }
+        try {
+          const response = await fetch(`/device_status?inventory_number=${encodeURIComponent(inventoryNumber)}`);
+          const result = await response.json();
+          // Je nach Status Button-Label und Funktion anpassen
+          if (result.status === "available") {
+            actionButton.innerText = "Ausleihen";
+            actionButton.onclick = checkOutDevice;
+          } else {
+            actionButton.innerText = "Rückgabe";
+            actionButton.onclick = checkInDevice;
+          }
+          actionButton.style.display = "inline-block";
+        } catch (error) {
+          console.error("Fehler beim Abrufen des Gerätesteatus:", error);
+          actionButton.style.display = "none";
+        }
+      }
+      
+      inventoryInput.addEventListener("blur", checkDeviceStatus);
+      // Optional: auch onKeyUp mit debounce, falls gewünscht
+
+      window.signaturePad = signaturePad;
     });
 
     async function checkOutDevice() {
       const inventoryNumber = document.getElementById('inventory_number').value;
       const borrower = document.getElementById('borrower').value;
-
       if (signaturePad.isEmpty()) {
          alert("Bitte unterschreiben!");
          return;
       }
-
       const signatureData = signaturePad.toDataURL();
-
       if (!inventoryNumber || !borrower || !signatureData) {
-         alert("Bitte füllen Sie alle Felder aus und leisten Sie eine Unterschrift.");
+         alert("Bitte alle Felder ausfüllen und unterschreiben.");
          return;
       }
-
       const response = await fetch('/check_out', {
          method: 'POST',
          headers: {'Content-Type': 'application/json'},
@@ -37,13 +85,9 @@
          })
       });
       const result = await response.json();
-      if(result.error) {
-          alert("Fehler: " + result.error);
-      } else {
-          alert(result.message);
-          // Canvas zurücksetzen, damit die Unterschrift nicht hängen bleibt.
-          signaturePad.clear();
-      }
+      alert(result.message || result.error);
+      // Optionale Aktion: SignaturePad zurücksetzen
+      signaturePad.clear();
     }
 
     async function checkInDevice() {
@@ -54,7 +98,7 @@
          body: JSON.stringify({inventory_number: inventoryNumber})
       });
       const result = await response.json();
-      alert(result.message);
+      alert(result.message || result.error);
     }
   </script>
 </head>
@@ -67,19 +111,20 @@
   </div>
   <div>
       <label for="borrower">Name des Ausleihenden:</label>
-      <select id="borrower" name="borrower">
+      <input type="text" list="borrowers-list" id="borrower" name="borrower">
+      <datalist id="borrowers-list">
         {% for name in borrowers %}
-          <option value="{{ name }}">{{ name }}</option>
+          <option value="{{ name }}">
         {% endfor %}
-      </select>
+      </datalist>
   </div>
   <br>
-  <div>
-    <button onclick="checkOutDevice()">Ausleihen</button>
-    <button onclick="checkInDevice()">Rückgabe</button>
-  </div>
+  <!-- Dynamische Aktionsschaltfläche -->
+  <button id="actionButton" style="display: none;"></button>
   
   <h3>Unterschrift erfassen</h3>
   <canvas id="signatureCanvas" width="400" height="200" style="border: 1px solid black;"></canvas>
+  <br>
+  <button type="button" onclick="signaturePad.clear()">Löschen</button>
 </body>
 </html>

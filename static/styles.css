@@ -1,0 +1,78 @@
+/* Allgemeines Styling */
+body {
+    font-family: Tahoma, sans-serif;
+    background-color: #ffffff; /* Markenweiß */
+    color: #000548; /* Markenblau */
+    text-align: center;
+    margin: 20px;
+}
+
+/* Buttons */
+button {
+    padding: 10px;
+    margin: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background-color: #eb003c; /* Markenrot */
+    color: white;
+    font-weight: bold;
+    font-family: Tahoma, sans-serif;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #ff606e; /* Abstufung von Markenrot */
+}
+
+/* Inputs und Combobox */
+input, select, datalist {
+    padding: 10px;
+    margin: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background-color: #deeefc; /* Abstufung von Markenblau */
+    font-family: Tahoma, sans-serif;
+}
+
+/* Unterschriftenfeld */
+canvas {
+    border: 3px solid #000548; /* Markenblau */
+    background-color: #ffffff; /* Weiß für die Signatur */
+    touch-action: none; /* Verhindert Scrollen beim Zeichnen */
+}
+
+/* Links */
+a {
+    text-decoration: none;
+    color: #eb003c; /* Markenrot */
+    font-weight: bold;
+    font-family: Tahoma, sans-serif;
+}
+
+a:hover {
+    color: #ff606e; /* Abstufung von Markenrot */
+}
+
+/* Tabellen */
+table {
+    width: 80%;
+    margin: auto;
+    border-collapse: collapse;
+    font-family: Tahoma, sans-serif;
+}
+
+th {
+    background-color: #eb003c; /* Markenrot */
+    color: white;
+    padding: 10px;
+    border-bottom: 3px solid #ff606e; /* Abstufung von Markenrot */
+}
+
+td {
+    padding: 8px;
+    border-bottom: 1px solid #ccc;
+}
+
+tr:nth-child(even) {
+    background-color: #deeefc; /* Abstufung von Markenblau */
+}

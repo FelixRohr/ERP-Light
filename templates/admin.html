@@ -1,44 +1,148 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script>
+        // Funktion, um die Tabelle anhand einer Spalte (n) zu sortieren
+        function sortTable(n) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("adminTable");
+            switching = true;
+            dir = "asc"; 
+            while (switching) {
+                switching = false;
+                rows = table.rows;
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+                    // Wenn es sich um die numerische Spalte (ID) handelt:
+                    if (n === 0) {
+                        if (dir === "asc") {
+                            if (parseInt(x.innerText) > parseInt(y.innerText)) {
+                                shouldSwitch = true;
+                                break;
+                            }
+                        } else if (dir === "desc") {
+                            if (parseInt(x.innerText) < parseInt(y.innerText)) {
+                                shouldSwitch = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        if (dir === "asc") {
+                            if (x.innerText.toLowerCase() > y.innerText.toLowerCase()) {
+                                shouldSwitch = true;
+                                break;
+                            }
+                        } else if (dir === "desc") {
+                            if (x.innerText.toLowerCase() < y.innerText.toLowerCase()) {
+                                shouldSwitch = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount++;
+                } else {
+                    if (switchcount === 0 && dir === "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+
+        async function updateDevice(deviceId) {
+            const inventoryNumber = document.getElementById(`inventory_number_${deviceId}`).value;
+            const user = document.getElementById(`user_${deviceId}`).value;
+            const checkedOutAt = document.getElementById(`checked_out_at_${deviceId}`).value;
+            const checkedInAt = document.getElementById(`checked_in_at_${deviceId}`).value;
+
+            const response = await fetch('/edit_device', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id: deviceId,
+                    inventory_number: inventoryNumber,
+                    user: user,
+                    checked_out_at: checkedOutAt,
+                    checked_in_at: checkedInAt
+                })
+            });
+            const result = await response.json();
+            alert(result.message);
+        }
+
+        async function addDevice() {
+            const inventoryNumber = document.getElementById("new_inventory_number").value;
+            if (!inventoryNumber) {
+                alert("Bitte geben Sie eine Inventarnummer ein.");
+                return;
+            }
+            const response = await fetch('/admin/add_device', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({inventory_number: inventoryNumber})
+            });
+            const result = await response.json();
+            if (result.error) {
+                alert(result.error);
+            } else {
+                alert(result.message);
+                location.reload(); // Seite aktualisieren, um neue Daten anzuzeigen
+            }
+        }
+    </script>
 </head>
 <body>
-  <h2>Admin Dashboard</h2>
-  <a href="{{ url_for('logout') }}">Logout</a>
-  <!-- Hier den Link zur Benutzerverwaltung einfügen -->
-  <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
-  <table border="1" cellpadding="5" cellspacing="0">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Inventarnummer</th>
-        <th>User</th>
-        <th>Checked Out At</th>
-        <th>Checked In At</th>
-        <th>Signature</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for device in devices %}
-      <tr>
-        <td>{{ device["id"] }}</td>
-        <td>{{ device["inventory_number"] }}</td>
-        <td>{{ device["user"] if device["user"] else "N/A" }}</td>
-        <td>{{ device["checked_out_at"] if device["checked_out_at"] else "-" }}</td>
-        <td>{{ device["checked_in_at"] if device["checked_in_at"] else "-" }}</td>
-        <td>
-            {% if device['signature'] %}
-              <img src="{{ device['signature'] }}" alt="Unterschrift" width="100">
-            {% else %}
-              Kein Bild
-            {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <h2>Admin Dashboard</h2>
+    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
+
+    <!-- Formular zum Hinzufügen eines neuen Gerätes -->
+    <h3>Neues Gerät hinzufügen</h3>
+    <input type="text" id="new_inventory_number" placeholder="Inventarnummer">
+    <button onclick="addDevice()">Gerät hinzufügen</button>
+
+    <table id="adminTable" border="1">
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">ID</th>
+                <th onclick="sortTable(1)">Inventarnummer</th>
+                <th onclick="sortTable(2)">User</th>
+                <th onclick="sortTable(3)">Ausgeliehen am</th>
+                <th onclick="sortTable(4)">Zurückgegeben am</th>
+                <th onclick="sortTable(5)">Status</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for device in devices %}
+            <tr>
+                <td>{{ device["id"] }}</td>
+                <td><input type="text" id="inventory_number_{{ device['id'] }}" value="{{ device['inventory_number'] }}"></td>
+                <td><input type="text" id="user_{{ device['id'] }}" value="{{ device['user'] if device['user'] else '' }}"></td>
+                <td><input type="text" id="checked_out_at_{{ device['id'] }}" value="{{ device['checked_out_at'] }}"></td>
+                <td><input type="text" id="checked_in_at_{{ device['id'] }}" value="{{ device['checked_in_at'] }}"></td>
+                <td>
+                    {% if device['user'] %}
+                        <span style="color: red; font-weight: bold;">In Benutzung</span>
+                    {% else %}
+                        <span style="color: green; font-weight: bold;">Verfügbar</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </body>
 </html>
