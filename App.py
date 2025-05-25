@@ -18,7 +18,7 @@ def get_db_connection():
 
 def init_db():
     """Erstellt die Tabellen devices und users, falls diese noch nicht existieren.
-    Fügt einen Default-Admin hinzu (Benutzer: admin, Passwort: admin). In der Produktion unbedingt anpassen!"""
+    Fügt einen Default-Admin hinzu (Benutzer: admin, Passwort: admin)."""
     conn = get_db_connection()
     cursor = conn.cursor()
     # Tabelle für Geräte
@@ -41,7 +41,7 @@ def init_db():
         role TEXT NOT NULL
     )
     """)
-    # Prüfen, ob Admin bereits existiert; falls nicht, ein Default-Admin anlegen
+    # Prüfen, ob Admin bereits existiert; falls nicht, Default-Admin anlegen
     cursor.execute("SELECT * FROM users WHERE username = ?", ("admin",))
     if cursor.fetchone() is None:
         admin_password = generate_password_hash("admin")  # Default-Passwort; in der Produktion ändern!
@@ -70,7 +70,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Startseite leitet entweder zum Login oder direkt in den Benutzer- bzw. Adminbereich weiter
+# Startseite: Je nach Session wird entweder zum Login oder zu einem der Bereiche weitergeleitet
 @app.route('/')
 def index():
     if 'username' in session:
@@ -110,13 +110,17 @@ def logout():
     flash("Abgemeldet!")
     return redirect(url_for('login'))
 
-# Benutzerbereich (Dashboard)
+# Benutzer-Dashboard: Hier wird die Liste aller registrierten Nutzer (als mögliche Borrower) geladen
 @app.route('/dashboard')
 @login_required
 def user_area():
-    return render_template('dashboard.html')
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT username FROM users")
+    borrowers = [row['username'] for row in cursor.fetchall()]
+    conn.close()
+    return render_template('dashboard.html', borrowers=borrowers)
 
-# Adminbereich: Übersicht aller Geräte, Möglichkeit Einträge zu editieren
+# Admin-Dashboard: Übersicht aller Geräte
 @app.route('/admin')
 @admin_required
 def admin_area():
@@ -126,38 +130,40 @@ def admin_area():
     conn.close()
     return render_template('admin.html', devices=devices)
 
-# API-Endpunkt: Gerät ausleihen bzw. auschecken
+# API-Endpunkt: Gerät ausleihen (Check-out)
 @app.route('/check_out', methods=['POST'])
 @login_required
 def check_out():
     data = request.json
     inventory_number = data.get('inventory_number')
-    user_name = session.get('username')  # Der aktuell angemeldete Benutzer
+    borrower = data.get('borrower')
+    signature = data.get('signature')
     
-    if not inventory_number:
-        return jsonify({"error": "Inventory number is required"}), 400
+    # Überprüfen, ob alle nötigen Daten vorhanden sind
+    if not inventory_number or not borrower or not signature or signature.strip() == "":
+        return jsonify({"error": "Inventarnummer, Borrower und Unterschrift sind erforderlich."}), 400
     
+    now = datetime.utcnow().isoformat()
     conn = get_db_connection()
     cursor = conn.cursor()
-    now = datetime.utcnow().isoformat()
     try:
-        # Bei neuem Gerät wird ein Eintrag erstellt
+        # Falls das Gerät noch nicht in der Datenbank ist, wird ein neuer Eintrag erstellt.
         cursor.execute("""
-        INSERT INTO devices (inventory_number, user, checked_out_at)
-        VALUES (?, ?, ?)
-        """, (inventory_number, user_name, now))
+           INSERT INTO devices (inventory_number, user, checked_out_at, signature)
+           VALUES (?, ?, ?, ?)
+        """, (inventory_number, borrower, now, signature))
     except sqlite3.IntegrityError:
-        # Existenter Eintrag: Update der Checkout-Informationen
+        # Existierender Eintrag: Update der Check-out-Informationen
         cursor.execute("""
-        UPDATE devices
-        SET user = ?, checked_out_at = ?, checked_in_at = NULL
-        WHERE inventory_number = ?
-        """, (user_name, now, inventory_number))
+           UPDATE devices
+           SET user = ?, checked_out_at = ?, checked_in_at = NULL, signature = ?
+           WHERE inventory_number = ?
+        """, (borrower, now, signature, inventory_number))
     conn.commit()
     conn.close()
-    return jsonify({"message": f"Device {inventory_number} checked out by {user_name}"}), 200
+    return jsonify({"message": f"Device {inventory_number} wurde von {borrower} mit Unterschrift ausgeliehen."}), 200
 
-# API-Endpunkt: Gerät zurückgeben bzw. einchecken
+# API-Endpunkt: Gerät zurückgeben (Check-in)
 @app.route('/check_in', methods=['POST'])
 @login_required
 def check_in():
@@ -165,7 +171,7 @@ def check_in():
     inventory_number = data.get('inventory_number')
     
     if not inventory_number:
-        return jsonify({"error": "Inventory number is required"}), 400
+        return jsonify({"error": "Inventarnummer is required"}), 400
     
     now = datetime.utcnow().isoformat()
     conn = get_db_connection()
@@ -175,9 +181,9 @@ def check_in():
     """, (now, inventory_number))
     conn.commit()
     conn.close()
-    return jsonify({"message": f"Device {inventory_number} checked in"}), 200
+    return jsonify({"message": f"Device {inventory_number} wurde zurückgegeben."}), 200
 
-# Unterschriften-Speicherung (das Signature-Bild wird als Base64-String in der DB abgelegt)
+# Unterschriften-Speicherung (falls getrennt benötigt – alternativ auch über check_out integriert)
 @app.route('/save_signature', methods=["POST"])
 @login_required
 def save_signature():
@@ -221,7 +227,60 @@ def edit_device():
     conn.close()
     return jsonify({"message": "Device updated successfully"}), 200
 
+# --- Admin-Funktionen für die Nutzerverwaltung ---
+
+# Übersicht über alle Nutzer
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT id, username, role FROM users")
+    users = cursor.fetchall()
+    conn.close()
+    return render_template('admin_users.html', users=users)
+
+# Registrierung neuer Nutzer (über Admin erreichbar)
+@app.route('/admin/register', methods=['GET', 'POST'])
+@admin_required
+def register_user():
+    if request.method == 'POST':
+        username = request.form.get("username")
+        password = request.form.get("password")
+        role = request.form.get("role", "user")  # Standardmäßig "user"
+    
+        if not username or not password:
+            flash("Benutzername und Passwort sind erforderlich!")
+            return redirect(url_for('register_user'))
+    
+        hashed_password = generate_password_hash(password)
+    
+        conn = get_db_connection()
+        try:
+            conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                         (username, hashed_password, role))
+            conn.commit()
+            flash("Benutzer erfolgreich registriert!")
+        except sqlite3.IntegrityError:
+            flash("Benutzername bereits vergeben!")
+        finally:
+            conn.close()
+    
+        return redirect(url_for('admin_users'))
+    
+    return render_template('register_user.html')
+
+# Löschen von Nutzern
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    flash("Benutzer gelöscht!")
+    return redirect(url_for('admin_users'))
+
 if __name__ == '__main__':
     init_db()
-    # Der Server hört auf allen Interfaces (ideal für einen Raspberry Pi im lokalen Netzwerk)
+    # Der Server hört auf allen Interfaces (ideal für den Einsatz auf einem Raspberry Pi im LAN)
     app.run(debug=True, host='0.0.0.0')

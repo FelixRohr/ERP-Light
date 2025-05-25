@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>User Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.0.0/signature_pad.umd.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const canvas = document.getElementById("signatureCanvas");
+      window.signaturePad = new SignaturePad(canvas);
+    });
+
+    async function checkOutDevice() {
+      const inventoryNumber = document.getElementById('inventory_number').value;
+      const borrower = document.getElementById('borrower').value;
+
+      if (signaturePad.isEmpty()) {
+         alert("Bitte unterschreiben!");
+         return;
+      }
+
+      const signatureData = signaturePad.toDataURL();
+
+      if (!inventoryNumber || !borrower || !signatureData) {
+         alert("Bitte füllen Sie alle Felder aus und leisten Sie eine Unterschrift.");
+         return;
+      }
+
+      const response = await fetch('/check_out', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({
+              inventory_number: inventoryNumber,
+              borrower: borrower,
+              signature: signatureData
+         })
+      });
+      const result = await response.json();
+      if(result.error) {
+          alert("Fehler: " + result.error);
+      } else {
+          alert(result.message);
+          // Canvas zurücksetzen, damit die Unterschrift nicht hängen bleibt.
+          signaturePad.clear();
+      }
+    }
+
+    async function checkInDevice() {
+      const inventoryNumber = document.getElementById('inventory_number').value;
+      const response = await fetch('/check_in', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({inventory_number: inventoryNumber})
+      });
+      const result = await response.json();
+      alert(result.message);
+    }
+  </script>
+</head>
+<body>
+  <h2>User Dashboard</h2>
+  <a href="{{ url_for('logout') }}">Logout</a>
+  <div>
+      <label for="inventory_number">Inventarnummer (QR-Code oder manuelle Eingabe):</label>
+      <input type="text" id="inventory_number" name="inventory_number">
+  </div>
+  <div>
+      <label for="borrower">Name des Ausleihenden:</label>
+      <select id="borrower" name="borrower">
+        {% for name in borrowers %}
+          <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+  </div>
+  <br>
+  <div>
+    <button onclick="checkOutDevice()">Ausleihen</button>
+    <button onclick="checkInDevice()">Rückgabe</button>
+  </div>
+  
+  <h3>Unterschrift erfassen</h3>
+  <canvas id="signatureCanvas" width="400" height="200" style="border: 1px solid black;"></canvas>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Benutzerübersicht</title>
+</head>
+<body>
+    <h2>Benutzerübersicht</h2>
+    <a href="{{ url_for('admin_area') }}">Zurück zum Admin-Dashboard</a>
+    <a href="{{ url_for('register_user') }}">Neuen Benutzer registrieren</a>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for message in messages %}
+            <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Benutzername</th>
+                <th>Rolle</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user['id'] }}</td>
+                <td>{{ user['username'] }}</td>
+                <td>{{ user['role'] }}</td>
+                <td>
+                    <form action="{{ url_for('delete_user', user_id=user['id']) }}" method="post">
+                        <button type="submit">Löschen</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

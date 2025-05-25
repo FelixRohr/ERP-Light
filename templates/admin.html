@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <h2>Admin Dashboard</h2>
+  <a href="{{ url_for('logout') }}">Logout</a>
+  <!-- Hier den Link zur Benutzerverwaltung einfügen -->
+  <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
+  <table border="1" cellpadding="5" cellspacing="0">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Inventarnummer</th>
+        <th>User</th>
+        <th>Checked Out At</th>
+        <th>Checked In At</th>
+        <th>Signature</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for device in devices %}
+      <tr>
+        <td>{{ device["id"] }}</td>
+        <td>{{ device["inventory_number"] }}</td>
+        <td>{{ device["user"] if device["user"] else "N/A" }}</td>
+        <td>{{ device["checked_out_at"] if device["checked_out_at"] else "-" }}</td>
+        <td>{{ device["checked_in_at"] if device["checked_in_at"] else "-" }}</td>
+        <td>
+            {% if device['signature'] %}
+              <img src="{{ device['signature'] }}" alt="Unterschrift" width="100">
+            {% else %}
+              Kein Bild
+            {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
