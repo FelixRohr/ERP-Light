@@ -5,12 +5,12 @@
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script>
-        // Funktion, um die Tabelle anhand einer Spalte (n) zu sortieren
+        // Funktion zur Tabellensortierung – (bereits vorhanden)
         function sortTable(n) {
             var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
             table = document.getElementById("adminTable");
             switching = true;
-            dir = "asc"; 
+            dir = "asc";
             while (switching) {
                 switching = false;
                 rows = table.rows;
@@ -18,14 +18,13 @@
                     shouldSwitch = false;
                     x = rows[i].getElementsByTagName("TD")[n];
                     y = rows[i + 1].getElementsByTagName("TD")[n];
-                    // Wenn es sich um die numerische Spalte (ID) handelt:
-                    if (n === 0) {
+                    if (n === 0) { // Numerische Sortierung für ID
                         if (dir === "asc") {
                             if (parseInt(x.innerText) > parseInt(y.innerText)) {
                                 shouldSwitch = true;
                                 break;
                             }
-                        } else if (dir === "desc") {
+                        } else {
                             if (parseInt(x.innerText) < parseInt(y.innerText)) {
                                 shouldSwitch = true;
                                 break;
@@ -37,7 +36,7 @@
                                 shouldSwitch = true;
                                 break;
                             }
-                        } else if (dir === "desc") {
+                        } else {
                             if (x.innerText.toLowerCase() < y.innerText.toLowerCase()) {
                                 shouldSwitch = true;
                                 break;
@@ -46,7 +45,7 @@
                     }
                 }
                 if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    rows[i].parentNode.insertBefore(rows[i+1], rows[i]);
                     switching = true;
                     switchcount++;
                 } else {
@@ -58,46 +57,68 @@
             }
         }
 
-        async function updateDevice(deviceId) {
-            const inventoryNumber = document.getElementById(`inventory_number_${deviceId}`).value;
-            const user = document.getElementById(`user_${deviceId}`).value;
-            const checkedOutAt = document.getElementById(`checked_out_at_${deviceId}`).value;
-            const checkedInAt = document.getElementById(`checked_in_at_${deviceId}`).value;
-
-            const response = await fetch('/edit_device', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    id: deviceId,
-                    inventory_number: inventoryNumber,
-                    user: user,
-                    checked_out_at: checkedOutAt,
-                    checked_in_at: checkedInAt
-                })
+        // Funktion zum Löschen eines Geräteeintrags
+        async function deleteDevice(deviceId) {
+            if (!confirm("Möchten Sie diesen Eintrag wirklich löschen?")) return;
+            const response = await fetch("/admin/delete_device/" + deviceId, {
+                method: "POST"
             });
             const result = await response.json();
             alert(result.message);
+            location.reload();  // Seite neu laden, damit der Eintrag nicht mehr angezeigt wird.
         }
 
         async function addDevice() {
-            const inventoryNumber = document.getElementById("new_inventory_number").value;
+            const inventoryNumber = document.getElementById("new_inventory_number").value.trim();
             if (!inventoryNumber) {
-                alert("Bitte geben Sie eine Inventarnummer ein.");
-                return;
+              alert("Bitte geben Sie eine Inventarnummer ein.");
+              return;
             }
-            const response = await fetch('/admin/add_device', {
+            
+            try {
+              // Debug: Zeige in der Konsole an, dass der Request gestartet wird
+              console.log("Starte Anfrage zum Hinzufügen des Geräts:", inventoryNumber);
+              
+              const response = await fetch('/admin/add_device', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({inventory_number: inventoryNumber})
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ inventory_number: inventoryNumber })
+              });
+              
+              if (!response.ok) {
+                // Wenn der Response nicht ok ist, gebe den Fehler aus
+                const errorData = await response.json();
+                console.error("Fehler beim Hinzufügen:", errorData);
+                alert("Fehler: " + errorData.error);
+                return;
+              }
+              
+              const result = await response.json();
+              console.log("Erfolg:", result);
+              alert(result.message);
+              location.reload(); // Seite aktualisieren, damit der Eintrag sofort sichtbar ist.
+              
+            } catch (error) {
+              console.error("Request-Fehler:", error);
+              alert("Fehler beim Hinzufügen: " + error);
+            }
+          }
+        
+
+        // Funktion zum Löschen eines Nutzers (optional, falls über Ajax genutzt)
+        async function deleteUser(userId) {
+            if (!confirm("Möchten Sie diesen Benutzer wirklich löschen?")) return;
+            const response = await fetch("/admin/delete_user/" + userId, {
+                method: "POST"
             });
             const result = await response.json();
-            if (result.error) {
-                alert(result.error);
-            } else {
-                alert(result.message);
-                location.reload(); // Seite aktualisieren, um neue Daten anzuzeigen
-            }
+            alert(result.message);
+            location.reload();
         }
+
+        // ... weitere Funktionen (toggleStatus, updateDevice, etc.) ...
     </script>
 </head>
 <body>
@@ -105,7 +126,7 @@
     <a href="{{ url_for('logout') }}">Logout</a>
     <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
 
-    <!-- Formular zum Hinzufügen eines neuen Gerätes -->
+    <!-- Formular zum Hinzufügen eines neuen Geräts -->
     <h3>Neues Gerät hinzufügen</h3>
     <input type="text" id="new_inventory_number" placeholder="Inventarnummer">
     <button onclick="addDevice()">Gerät hinzufügen</button>
@@ -118,6 +139,7 @@
                 <th onclick="sortTable(2)">User</th>
                 <th onclick="sortTable(3)">Ausgeliehen am</th>
                 <th onclick="sortTable(4)">Zurückgegeben am</th>
+                <th>Unterschrift</th>
                 <th onclick="sortTable(5)">Status</th>
                 <th>Aktionen</th>
             </tr>
@@ -131,6 +153,13 @@
                 <td><input type="text" id="checked_out_at_{{ device['id'] }}" value="{{ device['checked_out_at'] }}"></td>
                 <td><input type="text" id="checked_in_at_{{ device['id'] }}" value="{{ device['checked_in_at'] }}"></td>
                 <td>
+                    {% if device['signature'] %}
+                        <img src="{{ device['signature'] }}" alt="Unterschrift" width="100">
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td id="status_{{ device['id'] }}">
                     {% if device['user'] %}
                         <span style="color: red; font-weight: bold;">In Benutzung</span>
                     {% else %}
@@ -139,6 +168,9 @@
                 </td>
                 <td>
                     <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
+                    <button onclick="toggleStatus({{ device['id'] }})">Status ändern</button>
+                    <!-- Neuer Löschen-Button für das Gerät -->
+                    <button onclick="deleteDevice({{ device['id'] }})">Löschen</button>
                 </td>
             </tr>
             {% endfor %}

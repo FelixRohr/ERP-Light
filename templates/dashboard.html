@@ -7,6 +7,7 @@
   <script src="{{ url_for('static', filename='js/signature_pad.min.js') }}"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
+      // Signature Pad initialisieren
       const canvas = document.getElementById("signatureCanvas");
       window.signaturePad = new SignaturePad(canvas, {
          minWidth: 1,
@@ -14,6 +15,7 @@
          penColor: "black"
       });
 
+      // Canvas-Größe anhand seines Container-Maßes und Device Pixel Ratio anpassen
       function resizeCanvas() {
           const rect = canvas.getBoundingClientRect();
           const ratio = Math.max(window.devicePixelRatio || 1, 1);
@@ -23,6 +25,7 @@
           canvas.style.height = rect.height + "px";
           const context = canvas.getContext("2d");
           context.scale(ratio, ratio);
+          // Optionale Aktion: Canvas leeren, um unscharfe Zeichnungen zu vermeiden
           signaturePad.clear();
       }
 
@@ -34,7 +37,7 @@
       const actionButton = document.getElementById("actionButton");
 
       async function checkDeviceStatus() {
-        const inventoryNumber = inventoryInput.value;
+        const inventoryNumber = inventoryInput.value.trim();
         if (!inventoryNumber) {
           actionButton.style.display = "none";
           return;
@@ -42,7 +45,7 @@
         try {
           const response = await fetch(`/device_status?inventory_number=${encodeURIComponent(inventoryNumber)}`);
           const result = await response.json();
-          // Je nach Status Button-Label und Funktion anpassen
+          // Je nach zurückgegebenem Status wird der Button angepasst  
           if (result.status === "available") {
             actionButton.innerText = "Ausleihen";
             actionButton.onclick = checkOutDevice;
@@ -58,14 +61,16 @@
       }
       
       inventoryInput.addEventListener("blur", checkDeviceStatus);
-      // Optional: auch onKeyUp mit debounce, falls gewünscht
+      // Optional: Auch per "keyup" einsetzen (ggf. mit debounce)
 
+      // Sicherstellen, dass der SignaturePad global verfügbar ist:
       window.signaturePad = signaturePad;
     });
 
+    // Funktion für Check-out (Ausleihen)
     async function checkOutDevice() {
-      const inventoryNumber = document.getElementById('inventory_number').value;
-      const borrower = document.getElementById('borrower').value;
+      const inventoryNumber = document.getElementById('inventory_number').value.trim();
+      const borrower = document.getElementById('borrower').value.trim();
       if (signaturePad.isEmpty()) {
          alert("Bitte unterschreiben!");
          return;
@@ -75,30 +80,42 @@
          alert("Bitte alle Felder ausfüllen und unterschreiben.");
          return;
       }
-      const response = await fetch('/check_out', {
-         method: 'POST',
-         headers: {'Content-Type': 'application/json'},
-         body: JSON.stringify({
-              inventory_number: inventoryNumber,
-              borrower: borrower,
-              signature: signatureData
-         })
-      });
-      const result = await response.json();
-      alert(result.message || result.error);
-      // Optionale Aktion: SignaturePad zurücksetzen
-      signaturePad.clear();
+      try {
+        const response = await fetch('/check_out', {
+           method: 'POST',
+           headers: {'Content-Type': 'application/json'},
+           body: JSON.stringify({
+                inventory_number: inventoryNumber,
+                borrower: borrower,
+                signature: signatureData
+           })
+        });
+        const result = await response.json();
+        alert(result.message || result.error);
+        signaturePad.clear();
+      } catch (error) {
+        alert("Fehler beim Ausleihen: " + error);
+      }
     }
 
+    // Funktion für Check-in (Rückgabe)
     async function checkInDevice() {
-      const inventoryNumber = document.getElementById('inventory_number').value;
-      const response = await fetch('/check_in', {
-         method: 'POST',
-         headers: {'Content-Type': 'application/json'},
-         body: JSON.stringify({inventory_number: inventoryNumber})
-      });
-      const result = await response.json();
-      alert(result.message || result.error);
+      const inventoryNumber = document.getElementById('inventory_number').value.trim();
+      if (!inventoryNumber) {
+         alert("Bitte Inventarnummer eingeben.");
+         return;
+      }
+      try {
+        const response = await fetch('/check_in', {
+           method: 'POST',
+           headers: {'Content-Type': 'application/json'},
+           body: JSON.stringify({ inventory_number: inventoryNumber })
+        });
+        const result = await response.json();
+        alert(result.message || result.error);
+      } catch (error) {
+         alert("Fehler beim Rückgabevorgang: " + error);
+      }
     }
   </script>
 </head>

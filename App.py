@@ -37,7 +37,6 @@ def parse_timestamp_field(ts):
     if not ts or ts.strip() == "":
         return None
     try:
-        # Wenn ts bereits ISO-konform ist
         datetime.fromisoformat(ts)
         return ts
     except ValueError:
@@ -163,7 +162,8 @@ def admin_area():
         device['checked_in_at'] = format_timestamp(device['checked_in_at'])
     return render_template('admin.html', devices=devices)
 
-# Check-out: Gerät ausleihen
+# Check-out (User): bleibt unverändert
+
 @app.route('/check_out', methods=['POST'])
 @login_required
 def check_out():
@@ -200,7 +200,8 @@ def check_out():
     conn.close()
     return jsonify({"message": f"Gerät {inventory_number} erfolgreich an {borrower} vergeben."}), 200
 
-# Check-in: Gerät zurückgeben (nur, wenn es wirklich ausgeliehen ist)
+# Check-in (User): bleibt unverändert
+
 @app.route('/check_in', methods=['POST'])
 @login_required
 def check_in():
@@ -290,7 +291,67 @@ def add_device():
         conn.close()
         return jsonify({"error": "Gerät existiert bereits."}), 400
 
-# --- Admin-Nutzerverwaltung ---
+# --- Neue Endpunkte: Admin Check-out und Check-in ohne Unterschrift ---
+# Admin Check-out ohne Unterschrift (Gerät wird als "In Benutzung" markiert)
+@app.route('/admin/check_out', methods=['POST'])
+@admin_required
+def admin_check_out():
+    data = request.json
+    inventory_number = data.get('inventory_number')
+    user = data.get('user')
+    if not inventory_number or not user:
+        return jsonify({"error": "Inventarnummer und Benutzer sind erforderlich."}), 400
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
+    device = cursor.fetchone()
+    if device and device['user'] is not None:
+        conn.close()
+        return jsonify({"error": "Gerät wurde bereits ausgeliehen."}), 400
+    now = datetime.utcnow().isoformat()
+    # Konvertiere den ISO-Zeitstempel in ein menschenlesbares Format:
+    human_now = format_timestamp(now)
+    if device:
+        conn.execute(
+            "UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL WHERE inventory_number = ?",
+            (user, now, inventory_number))
+    else:
+        conn.execute(
+            "INSERT INTO devices (inventory_number, user, checked_out_at) VALUES (?, ?, ?)",
+            (inventory_number, user, now))
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "message": f"Gerät {inventory_number} wurde erfolgreich an {user} ausgecheckt (Admin).",
+        "checked_out_at": human_now  # Rückgabe des formatierten Zeitstempels
+    }), 200
+
+# Admin Check-in ohne Unterschrift (Gerät wird als "Verfügbar" markiert)
+@app.route('/admin/check_in', methods=['POST'])
+@admin_required
+def admin_check_in():
+    data = request.json
+    inventory_number = data.get('inventory_number')
+    if not inventory_number:
+        return jsonify({"error": "Inventarnummer ist erforderlich."}), 400
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
+    device = cursor.fetchone()
+    if not device:
+        conn.close()
+        return jsonify({"error": "Gerät existiert nicht."}), 404
+    if device['user'] is None:
+        conn.close()
+        return jsonify({"error": "Gerät ist bereits verfügbar."}), 400
+    now = datetime.utcnow().isoformat()
+    human_now = format_timestamp(now)
+    conn.execute("UPDATE devices SET user = NULL, checked_in_at = ? WHERE inventory_number = ?", (now, inventory_number))
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "message": f"Gerät {inventory_number} wurde erfolgreich eingecheckt (Admin).",
+        "checked_in_at": human_now  # Rückgabe des formatierten Rückgabezeitpunkts
+    }), 200
+# --- Nutzerverwaltung im Admin-Bereich ---
 
 @app.route('/admin/users')
 @admin_required
@@ -335,6 +396,15 @@ def delete_user(user_id):
     flash("Benutzer gelöscht!")
     return redirect(url_for('admin_users'))
 
+@app.route('/admin/delete_device/<int:device_id>', methods=['POST'])
+@admin_required
+def delete_device(device_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Gerät erfolgreich gelöscht."}), 200
+
 @app.route('/device_status')
 @login_required
 def device_status():
@@ -345,7 +415,7 @@ def device_status():
     cursor = conn.execute("SELECT user FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
     conn.close()
-    # Falls das Gerät nicht existiert oder verfügbar ist, geben wir "available" zurück
+    # Gerät existiert nicht oder ist verfügbar (user ist NULL)
     if not device or device['user'] is None:
         return jsonify({"status": "available"})
     else:
