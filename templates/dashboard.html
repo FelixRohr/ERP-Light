@@ -5,6 +5,48 @@
   <title>User Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <script src="{{ url_for('static', filename='js/signature_pad.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/jsQR.js') }}"></script>
+  <script>
+    async function startQrScan() {
+      const video = document.getElementById("qr-video");
+      const canvas = document.getElementById("qr-canvas");
+      const ctx = canvas.getContext("2d");
+    
+      try {
+        // Kamera-Zugriff erlauben
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+        video.classList.remove("hidden");
+    
+        function scanQrFrame() {
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, canvas.width, canvas.height);
+    
+            if (code) {
+              document.getElementById("inventory_number").value = code.data;
+              video.classList.add("hidden"); // Kamera ausblenden
+              stream.getTracks().forEach(track => track.stop()); // Kamera deaktivieren
+              checkDeviceStatus(); // Statusprüfung nach Scan
+            }
+          }
+          requestAnimationFrame(scanQrFrame);
+        }
+    
+        video.play();
+        requestAnimationFrame(scanQrFrame);
+    
+      } catch (error) {
+        alert("Kamera-Zugriff verweigert oder nicht verfügbar.");
+        console.error(error);
+      }
+    }
+    </script>
+
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/static/service-worker.js");
@@ -18,8 +60,32 @@
   </style>
 </head>
 <body>
-  <h2>Gerät ausleihen oder zurückgeben</h2>
-  <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+    <h2>Gerät ausleihen oder zurückgeben</h2>
+<div id="statusContainer">
+  <div id="statusMessage" class="status-message hidden"></div>
+  <div id="statusPlaceholder" class="status-placeholder"></div>
+</div>
+<a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+
+<script>
+    function showStatusMessage(message) {
+      const statusMessage = document.getElementById("statusMessage");
+      const statusPlaceholder = document.getElementById("statusPlaceholder");
+    
+      statusMessage.innerText = message;
+      statusMessage.classList.remove("hidden");
+      statusMessage.classList.add("visible");
+      statusPlaceholder.classList.add("hidden"); // Platzhalter ausblenden
+    
+      // Nachricht nach 3 Sekunden sanft ausblenden
+      setTimeout(() => {
+        statusMessage.classList.remove("visible");
+        statusMessage.classList.add("hidden");
+        statusPlaceholder.classList.remove("hidden"); // Platzhalter wieder sichtbar machen
+      }, 3000);
+    }
+    </script>
+
 
   <!-- Schritt 1: Inventarnummer scannen -->
   <div class="info-box">
@@ -31,6 +97,9 @@
   <div class="step-container">
     <label for="inventory_number">Inventarnummer (Scan):</label>
     <input type="text" id="inventory_number" name="inventory_number" onblur="checkDeviceStatus()">
+    <button onclick="startQrScan()">📷 QR-Code scannen</button>
+    <video id="qr-video" class="hidden"></video>
+    <canvas id="qr-canvas" class="hidden"></canvas>
   </div>
 
   <!-- Schritt 2: Dynamische Anzeige (Rückgabe oder Name eingeben) -->
@@ -41,11 +110,13 @@
   <div id="nameSection" class="step-container hidden">
     <label for="borrower">Name des Ausleihenden:</label>
     <input type="text" list="borrowers-list" id="borrower" name="borrower">
+
     <datalist id="borrowers-list">
-      {% for name in borrowers %}
-        <option value="{{ name }}">
-      {% endfor %}
+        {% for name in borrowers %}
+          <option value="{{ name }}" />
+        {% endfor %}
     </datalist>
+
     <button onclick="confirmName()">Bestätigen</button>
   </div>
 
@@ -119,37 +190,37 @@
     }
 
     async function checkOutDevice() {
-      const inventoryNumber = document.getElementById("inventory_number").value.trim();
-      const borrower = document.getElementById("borrower").value.trim();
-      if (signaturePad.isEmpty()) {
-        alert("Bitte unterschreiben!");
-        return;
-      }
-      const signatureData = signaturePad.toDataURL();
+        const inventoryNumber = document.getElementById("inventory_number").value.trim();
+        const borrower = document.getElementById("borrower").value.trim();
+        if (signaturePad.isEmpty()) {
+          showStatusMessage("Bitte unterschreiben!");
+          return;
+        }
+        const signatureData = signaturePad.toDataURL();
+        
+        const response = await fetch('/check_out', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ inventory_number: inventoryNumber, borrower: borrower, signature: signatureData })
+        });
       
-      const response = await fetch('/check_out', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ inventory_number: inventoryNumber, borrower: borrower, signature: signatureData })
-      });
-
-      const result = await response.json();
-      alert(result.message || result.error);
-      resetInterface();
-    }
-
-    async function checkInDevice() {
-      const inventoryNumber = document.getElementById("inventory_number").value.trim();
-      const response = await fetch('/check_in', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ inventory_number: inventoryNumber })
-      });
-
-      const result = await response.json();
-      alert(result.message || result.error);
-      resetInterface();
-    }
+        const result = await response.json();
+        showStatusMessage(result.message || result.error);
+        resetInterface();
+      }
+      
+      async function checkInDevice() {
+        const inventoryNumber = document.getElementById("inventory_number").value.trim();
+        const response = await fetch('/check_in', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ inventory_number: inventoryNumber })
+        });
+      
+        const result = await response.json();
+        showStatusMessage(result.message || result.error);
+        resetInterface();
+      }
 
     function resetInterface() {
       document.getElementById("inventory_number").value = "";

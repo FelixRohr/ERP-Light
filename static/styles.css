@@ -134,3 +134,74 @@ tr:nth-child(even) {
     opacity: 1;
     transform: scale(1); /* Animation beim Einblenden */
 }
+
+.status-message {
+    display: block;
+    width: 100%;
+    max-width: 500px;
+    margin: 10px auto;
+    padding: 10px;
+    font-size: 16px;
+    text-align: center;
+    background-color: #28a745; /* Grün für Erfolg */
+    border-radius: 8px;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+  }
+  
+  .status-message.hidden {
+    opacity: 0;
+  }
+  
+  .status-message.visible {
+    opacity: 1;
+  }
+
+  #statusContainer {
+    width: 100%;
+    max-width: 500px;
+    margin: 10px auto;
+    text-align: center;
+  }
+  
+  .status-message {
+    display: block;
+    height: 40px; /* Feste Höhe für Konsistenz */
+    padding: 10px;
+    font-size: 16px;
+    text-align: center;
+    border-radius: 8px;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .status-placeholder {
+    display: block;
+    height: 40px; /* Feste Höhe für Konsistenz */
+    padding: 10px;
+    font-size: 16px;
+    text-align: center;
+    border-radius: 8px;
+    /* box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2); */
+  }
+  
+  .status-message {
+    background-color: #28a745; /* Grün für Erfolg */
+    color: white;
+    opacity: 0;
+    transition: opacity 1.5s ease-in-out;
+  }
+  
+  .status-message.hidden {
+    transition: opacity 1.5s ease-in-out;
+    opacity: 0;
+  }
+  
+  .status-message.visible {
+    transition: opacity 1.5s ease-in-out;
+    opacity: 1;
+  }
+  
+  .status-placeholder {
+    background-color: white; /* Neutrale Farbe */
+  }
