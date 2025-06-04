@@ -6,142 +6,159 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <script src="{{ url_for('static', filename='js/signature_pad.min.js') }}"></script>
   <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/static/service-worker.js");
+    }
+  </script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+    .hidden { display: none; }
+    .step-container { margin-bottom: 20px; }
+    button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Gerät ausleihen oder zurückgeben</h2>
+  <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+
+  <!-- Schritt 1: Inventarnummer scannen -->
+  <div class="info-box">
+    <p><strong>So funktioniert es:</strong> </p>
+    <p>Scannen Sie die OPTA des Gerätes ein, um den Status des Geräts zu überprüfen.</p>
+    <p><strong>Der entsprechenden QR Code befindet sich auf der linken Seite des Funkterätes!</strong> </p>
+    <p>Falls das Gerät verfügbar ist, geben Sie Ihren Namen ein und bestätigen Sie das Ausleihen mit Ihrer Unterschrift.</p>
+  </div>
+  <div class="step-container">
+    <label for="inventory_number">Inventarnummer (Scan):</label>
+    <input type="text" id="inventory_number" name="inventory_number" onblur="checkDeviceStatus()">
+  </div>
+
+  <!-- Schritt 2: Dynamische Anzeige (Rückgabe oder Name eingeben) -->
+  <div id="returnSection" class="step-container hidden">
+    <button onclick="checkInDevice()">Gerät zurückgeben</button>
+  </div>
+
+  <div id="nameSection" class="step-container hidden">
+    <label for="borrower">Name des Ausleihenden:</label>
+    <input type="text" list="borrowers-list" id="borrower" name="borrower">
+    <datalist id="borrowers-list">
+      {% for name in borrowers %}
+        <option value="{{ name }}">
+      {% endfor %}
+    </datalist>
+    <button onclick="confirmName()">Bestätigen</button>
+  </div>
+
+  <!-- Schritt 3: Unterschrift erfassen -->
+  <div id="signatureSection" class="step-container hidden">
+    <h3>Unterschrift erfassen</h3>
+    <canvas id="signatureCanvas" style="border: 1px solid black;"></canvas>
+    <br>
+    <button type="button" onclick="signaturePad.clear()">Unterschrift löschen</button>
+    <br>
+    <button id="checkoutButton" onclick="checkOutDevice()">Gerät ausleihen</button>
+  </div>
+
+  <script>
     document.addEventListener("DOMContentLoaded", function() {
-      // Signature Pad initialisieren
       const canvas = document.getElementById("signatureCanvas");
+      const context = canvas.getContext("2d");
       window.signaturePad = new SignaturePad(canvas, {
-         minWidth: 1,
-         maxWidth: 3,
-         penColor: "black"
+        minWidth: 1,
+        maxWidth: 3,
+        penColor: "black"
       });
 
-      // Canvas-Größe anhand seines Container-Maßes und Device Pixel Ratio anpassen
       function resizeCanvas() {
-          const rect = canvas.getBoundingClientRect();
-          const ratio = Math.max(window.devicePixelRatio || 1, 1);
-          canvas.width = rect.width * ratio;
-          canvas.height = rect.height * ratio;
-          canvas.style.width = rect.width + "px";
-          canvas.style.height = rect.height + "px";
-          const context = canvas.getContext("2d");
-          context.scale(ratio, ratio);
-          // Optionale Aktion: Canvas leeren, um unscharfe Zeichnungen zu vermeiden
-          signaturePad.clear();
+        const parent = canvas.parentElement;
+        const rect = parent.getBoundingClientRect();
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+
+        canvas.style.width = rect.width + "px";
+        canvas.style.height = rect.height + "px";
+
+        context.scale(ratio, ratio);
+        signaturePad.clear();
       }
 
       window.addEventListener("resize", resizeCanvas);
-      resizeCanvas();
-
-      // Dynamische Statusprüfung beim Verlassen des Inventarnummer-Feldes
-      const inventoryInput = document.getElementById("inventory_number");
-      const actionButton = document.getElementById("actionButton");
-
-      async function checkDeviceStatus() {
-        const inventoryNumber = inventoryInput.value.trim();
-        if (!inventoryNumber) {
-          actionButton.style.display = "none";
-          return;
-        }
-        try {
-          const response = await fetch(`/device_status?inventory_number=${encodeURIComponent(inventoryNumber)}`);
-          const result = await response.json();
-          // Je nach zurückgegebenem Status wird der Button angepasst  
-          if (result.status === "available") {
-            actionButton.innerText = "Ausleihen";
-            actionButton.onclick = checkOutDevice;
-          } else {
-            actionButton.innerText = "Rückgabe";
-            actionButton.onclick = checkInDevice;
-          }
-          actionButton.style.display = "inline-block";
-        } catch (error) {
-          console.error("Fehler beim Abrufen des Gerätesteatus:", error);
-          actionButton.style.display = "none";
-        }
-      }
-      
-      inventoryInput.addEventListener("blur", checkDeviceStatus);
-      // Optional: Auch per "keyup" einsetzen (ggf. mit debounce)
-
-      // Sicherstellen, dass der SignaturePad global verfügbar ist:
-      window.signaturePad = signaturePad;
     });
 
-    // Funktion für Check-out (Ausleihen)
-    async function checkOutDevice() {
-      const inventoryNumber = document.getElementById('inventory_number').value.trim();
-      const borrower = document.getElementById('borrower').value.trim();
-      if (signaturePad.isEmpty()) {
-         alert("Bitte unterschreiben!");
-         return;
-      }
-      const signatureData = signaturePad.toDataURL();
-      if (!inventoryNumber || !borrower || !signatureData) {
-         alert("Bitte alle Felder ausfüllen und unterschreiben.");
-         return;
-      }
-      try {
-        const response = await fetch('/check_out', {
-           method: 'POST',
-           headers: {'Content-Type': 'application/json'},
-           body: JSON.stringify({
-                inventory_number: inventoryNumber,
-                borrower: borrower,
-                signature: signatureData
-           })
-        });
-        const result = await response.json();
-        alert(result.message || result.error);
-        signaturePad.clear();
-      } catch (error) {
-        alert("Fehler beim Ausleihen: " + error);
+    async function checkDeviceStatus() {
+      const inventoryNumber = document.getElementById("inventory_number").value.trim();
+      if (!inventoryNumber) return;
+      
+      const response = await fetch(`/device_status?inventory_number=${encodeURIComponent(inventoryNumber)}`);
+      const result = await response.json();
+      
+      // Schritt 2: Dynamische Anzeige je nach Status
+      if (result.status === "checked_out") {
+        document.getElementById("returnSection").classList.remove("hidden");
+        document.getElementById("nameSection").classList.add("hidden");
+      } else {
+        document.getElementById("nameSection").classList.remove("hidden");
+        document.getElementById("returnSection").classList.add("hidden");
       }
     }
 
-    // Funktion für Check-in (Rückgabe)
+    function confirmName() {
+      const borrower = document.getElementById("borrower").value.trim();
+      if (!borrower) {
+        alert("Bitte einen Namen eingeben!");
+        return;
+      }
+      document.getElementById("signatureSection").classList.remove("hidden");
+      
+      // Starte die Canvas-Größenanpassung, wenn das Element sichtbar ist
+      setTimeout(() => {
+        resizeCanvas();
+      }, 100);
+    }
+
+    async function checkOutDevice() {
+      const inventoryNumber = document.getElementById("inventory_number").value.trim();
+      const borrower = document.getElementById("borrower").value.trim();
+      if (signaturePad.isEmpty()) {
+        alert("Bitte unterschreiben!");
+        return;
+      }
+      const signatureData = signaturePad.toDataURL();
+      
+      const response = await fetch('/check_out', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ inventory_number: inventoryNumber, borrower: borrower, signature: signatureData })
+      });
+
+      const result = await response.json();
+      alert(result.message || result.error);
+      resetInterface();
+    }
+
     async function checkInDevice() {
-      const inventoryNumber = document.getElementById('inventory_number').value.trim();
-      if (!inventoryNumber) {
-         alert("Bitte Inventarnummer eingeben.");
-         return;
-      }
-      try {
-        const response = await fetch('/check_in', {
-           method: 'POST',
-           headers: {'Content-Type': 'application/json'},
-           body: JSON.stringify({ inventory_number: inventoryNumber })
-        });
-        const result = await response.json();
-        alert(result.message || result.error);
-      } catch (error) {
-         alert("Fehler beim Rückgabevorgang: " + error);
-      }
+      const inventoryNumber = document.getElementById("inventory_number").value.trim();
+      const response = await fetch('/check_in', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ inventory_number: inventoryNumber })
+      });
+
+      const result = await response.json();
+      alert(result.message || result.error);
+      resetInterface();
+    }
+
+    function resetInterface() {
+      document.getElementById("inventory_number").value = "";
+      document.getElementById("borrower").value = "";
+      signaturePad.clear();
+      document.getElementById("returnSection").classList.add("hidden");
+      document.getElementById("nameSection").classList.add("hidden");
+      document.getElementById("signatureSection").classList.add("hidden");
     }
   </script>
-</head>
-<body>
-  <h2>User Dashboard</h2>
-  <a href="{{ url_for('logout') }}">Logout</a>
-  <div>
-      <label for="inventory_number">Inventarnummer (QR-Code oder manuelle Eingabe):</label>
-      <input type="text" id="inventory_number" name="inventory_number">
-  </div>
-  <div>
-      <label for="borrower">Name des Ausleihenden:</label>
-      <input type="text" list="borrowers-list" id="borrower" name="borrower">
-      <datalist id="borrowers-list">
-        {% for name in borrowers %}
-          <option value="{{ name }}">
-        {% endfor %}
-      </datalist>
-  </div>
-  <br>
-  <!-- Dynamische Aktionsschaltfläche -->
-  <button id="actionButton" style="display: none;"></button>
-  
-  <h3>Unterschrift erfassen</h3>
-  <canvas id="signatureCanvas" width="400" height="200" style="border: 1px solid black;"></canvas>
-  <br>
-  <button type="button" onclick="signaturePad.clear()">Löschen</button>
 </body>
 </html>

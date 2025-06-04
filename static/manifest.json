@@ -1,0 +1,13 @@
+{
+    "name": "Inventar Manager",
+    "short_name": "Inventar",
+    "start_url": "/",
+    "display": "standalone",
+    "icons": [
+        {
+            "src": "/static/icon.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        }
+    ]
+}

@@ -365,26 +365,26 @@ def admin_users():
 @app.route('/admin/register', methods=['GET', 'POST'])
 @admin_required
 def register_user():
-    if request.method == 'POST':
-        username = request.form.get("username")
-        password = request.form.get("password")
-        role = request.form.get("role", "user")
-        if not username or not password:
-            flash("Benutzername und Passwort sind erforderlich!")
-            return redirect(url_for('register_user'))
-        hashed_password = generate_password_hash(password)
-        conn = get_db_connection()
-        try:
-            conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-                         (username, hashed_password, role))
-            conn.commit()
-            flash("Benutzer erfolgreich registriert!")
-        except sqlite3.IntegrityError:
-            flash("Benutzername bereits vergeben!")
-        finally:
-            conn.close()
-        return redirect(url_for('admin_users'))
-    return render_template('register_user.html')
+    if request.method != 'POST':
+        return render_template('register_user.html')
+    username = request.form.get("username")
+    password = request.form.get("password")
+    role = request.form.get("role", "user")
+    if not username or not password:
+        flash("Benutzername und Passwort sind erforderlich!")
+        return redirect(url_for('register_user'))
+    hashed_password = generate_password_hash(password)
+    conn = get_db_connection()
+    try:
+        conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                    (username, hashed_password, role))
+        conn.commit()
+        flash("Benutzer erfolgreich registriert!")
+    except sqlite3.IntegrityError:
+        flash("Benutzername bereits vergeben!")
+    finally:
+        conn.close()
+    return redirect(url_for('admin_users'))
 
 @app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
 @admin_required
@@ -423,4 +423,6 @@ def device_status():
 
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True, host='0.0.0.0')
+    import socket
+    if 'liveconsole' not in socket.gethostname():
+        app.run(host='0.0.0.0', port=5000, debug=True)

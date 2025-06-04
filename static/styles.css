@@ -24,6 +24,32 @@ button:hover {
     background-color: #ff606e; /* Abstufung von Markenrot */
 }
 
+#checkoutButton {
+    padding: 20px 40px;
+    font-size: 20px;
+    width: 300px;
+    height: 70px;
+    background-color: #deff00; /* Signalgelb für Hervorhebung */
+    color: #000548; /* Markenblau */
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+}
+
+.logout-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 10px 15px;
+    background-color: #eb003c; /* Markenrot */
+    color: white;
+    border: none;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+
 /* Inputs und Combobox */
 input, select, datalist {
     padding: 10px;
@@ -75,4 +101,36 @@ td {
 
 tr:nth-child(even) {
     background-color: #deeefc; /* Abstufung von Markenblau */
+}
+
+.info-box {
+    background-color: #f8f9fa; /* Leichte Hintergrundfarbe für Sichtbarkeit */
+    padding: 10px;
+    border-left: 4px solid #007bff; /* Blaue Linie für Akzent */
+    font-size: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+
+.step-container {
+    background-color: #f8f9fa; /* Leichte Hintergrundfarbe */
+    padding: 15px;
+    border-radius: 10px; /* Abgerundete Kanten */
+    border: 2px solid #007bff; /* Blaue Linie für Akzent */
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1); /* Leichte Schatten für moderne Optik */
+    max-width: 500px;
+    margin: 20px auto; /* Zentrierung */
+    text-align: center;
+    transition: all 0.3s ease-in-out; /* Sanfte Animation */
+}
+
+.step-container.hidden {
+    opacity: 0;
+    transform: scale(0.95); /* Leichte Verkleinerung, wenn ausgeblendet */
+}
+
+.step-container:not(.hidden) {
+    opacity: 1;
+    transform: scale(1); /* Animation beim Einblenden */
 }
