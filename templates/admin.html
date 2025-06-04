@@ -5,7 +5,7 @@
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script>
-        // Funktion zur Tabellensortierung – (bereits vorhanden)
+        // Funktion zur Tabellensortierung
         function sortTable(n) {
             var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
             table = document.getElementById("adminTable");
@@ -18,115 +18,156 @@
                     shouldSwitch = false;
                     x = rows[i].getElementsByTagName("TD")[n];
                     y = rows[i + 1].getElementsByTagName("TD")[n];
-                    if (n === 0) { // Numerische Sortierung für ID
-                        if (dir === "asc") {
-                            if (parseInt(x.innerText) > parseInt(y.innerText)) {
-                                shouldSwitch = true;
-                                break;
-                            }
-                        } else {
-                            if (parseInt(x.innerText) < parseInt(y.innerText)) {
-                                shouldSwitch = true;
-                                break;
-                            }
+                    if (n === 0) {
+                        if (dir === "asc" && parseInt(x.innerText) > parseInt(y.innerText)) {
+                            shouldSwitch = true;
+                            break;
+                        } else if (dir === "desc" && parseInt(x.innerText) < parseInt(y.innerText)) {
+                            shouldSwitch = true;
+                            break;
                         }
                     } else {
-                        if (dir === "asc") {
-                            if (x.innerText.toLowerCase() > y.innerText.toLowerCase()) {
-                                shouldSwitch = true;
-                                break;
-                            }
-                        } else {
-                            if (x.innerText.toLowerCase() < y.innerText.toLowerCase()) {
-                                shouldSwitch = true;
-                                break;
-                            }
+                        if (dir === "asc" && x.innerText.toLowerCase() > y.innerText.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        } else if (dir === "desc" && x.innerText.toLowerCase() < y.innerText.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
                         }
                     }
                 }
                 if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i+1], rows[i]);
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
                     switching = true;
                     switchcount++;
-                } else {
-                    if (switchcount === 0 && dir === "asc") {
-                        dir = "desc";
-                        switching = true;
-                    }
+                } else if (switchcount === 0 && dir === "asc") {
+                    dir = "desc";
+                    switching = true;
                 }
             }
         }
 
-        // Funktion zum Löschen eines Geräteeintrags
-        async function deleteDevice(deviceId) {
-            if (!confirm("Möchten Sie diesen Eintrag wirklich löschen?")) return;
-            const response = await fetch("/admin/delete_device/" + deviceId, {
-                method: "POST"
-            });
-            const result = await response.json();
-            alert(result.message);
-            location.reload();  // Seite neu laden, damit der Eintrag nicht mehr angezeigt wird.
+        // Funktion zum Anzeigen einer Nachricht
+        function showStatusMessage(message) {
+            const statusMessage = document.getElementById("statusMessage");
+            statusMessage.innerText = message;
+            statusMessage.classList.remove("hidden");
+            setTimeout(() => {
+                statusMessage.classList.add("hidden");
+            }, 3000);
         }
 
+        // Gerät löschen
+        async function deleteDevice(deviceId) {
+            if (!confirm("Möchten Sie diesen Eintrag wirklich löschen?")) return;
+            const response = await fetch("/admin/delete_device/" + deviceId, { method: "POST" });
+            const result = await response.json();
+            showStatusMessage(result.message || result.error);
+            setTimeout(() => { location.reload(); }, 500);
+        }
+
+        // Neues Gerät hinzufügen
         async function addDevice() {
             const inventoryNumber = document.getElementById("new_inventory_number").value.trim();
             if (!inventoryNumber) {
-              alert("Bitte geben Sie eine Inventarnummer ein.");
-              return;
-            }
-            
-            try {
-              // Debug: Zeige in der Konsole an, dass der Request gestartet wird
-              console.log("Starte Anfrage zum Hinzufügen des Geräts:", inventoryNumber);
-              
-              const response = await fetch('/admin/add_device', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ inventory_number: inventoryNumber })
-              });
-              
-              if (!response.ok) {
-                // Wenn der Response nicht ok ist, gebe den Fehler aus
-                const errorData = await response.json();
-                console.error("Fehler beim Hinzufügen:", errorData);
-                alert("Fehler: " + errorData.error);
+                showStatusMessage("Bitte geben Sie eine Inventarnummer ein.");
                 return;
-              }
-              
-              const result = await response.json();
-              console.log("Erfolg:", result);
-              alert(result.message);
-              location.reload(); // Seite aktualisieren, damit der Eintrag sofort sichtbar ist.
-              
-            } catch (error) {
-              console.error("Request-Fehler:", error);
-              alert("Fehler beim Hinzufügen: " + error);
             }
-          }
-        
-
-        // Funktion zum Löschen eines Nutzers (optional, falls über Ajax genutzt)
-        async function deleteUser(userId) {
-            if (!confirm("Möchten Sie diesen Benutzer wirklich löschen?")) return;
-            const response = await fetch("/admin/delete_user/" + userId, {
-                method: "POST"
+            const response = await fetch("/admin/add_device", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ inventory_number: inventoryNumber })
             });
             const result = await response.json();
-            alert(result.message);
-            location.reload();
+            showStatusMessage(result.message || result.error);
+            setTimeout(() => { location.reload(); }, 500);
         }
 
-        // ... weitere Funktionen (toggleStatus, updateDevice, etc.) ...
-    </script>
+        async function updateDevice(deviceId) {
+            const inventoryNumber = document.getElementById(`inventory_number_${deviceId}`).value.trim();
+            const user = document.getElementById(`user_${deviceId}`).value.trim();
+            const checkedOutAt = document.getElementById(`checked_out_at_${deviceId}`).value.trim();
+            const checkedInAt = document.getElementById(`checked_in_at_${deviceId}`).value.trim();
+        
+            if (!inventoryNumber) {
+                showStatusMessage("Die Inventarnummer darf nicht leer sein.");
+                return;
+            }
+        
+            try {
+                const response = await fetch(`/admin/update_device/${deviceId}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ inventory_number: inventoryNumber, user: user, checked_out_at: checkedOutAt, checked_in_at: checkedInAt })
+                });
+        
+                const result = await response.json();
+                console.log("Server Response:", result); // Debugging in der Konsole
+        
+                if (result.success) {
+                    showStatusMessage("Gerät erfolgreich aktualisiert!");
+                } else {
+                    showStatusMessage("Fehler beim Speichern: " + result.error);
+                }
+            } catch (error) {
+                console.error("Fehler in updateDevice():", error);
+                showStatusMessage("Fehler beim Speichern.");
+            }
+        }
+
+        async function toggleStatus(deviceId) {
+            const userField = document.getElementById(`user_${deviceId}`).value.trim();
+        
+            // Falls kein Benutzername eingegeben wurde, abbrechen
+            if (!userField) {
+                showStatusMessage("Bitte einen Namen eintragen, bevor das Gerät ausgeliehen wird.");
+                return;
+            }
+        
+            try {
+                const response = await fetch(`/admin/toggle_status/${deviceId}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user: userField }) // Benutzername senden
+                });
+        
+                const result = await response.json();
+                console.log("Server Response:", result); // Debugging-Ausgabe in der Konsole
+        
+                if (result.success) {
+                    const statusCell = document.getElementById(`status_${deviceId}`);
+                    statusCell.innerHTML = result.new_status === "checked_out"
+                        ? '<span style="color: red; font-weight: bold;">In Benutzung</span>'
+                        : '<span style="color: green; font-weight: bold;">Verfügbar</span>';
+        
+                    // Zeitstempel aktualisieren
+                    if (result.new_status === "checked_out") {
+                        document.getElementById(`checked_out_at_${deviceId}`).value = result.checked_out_at;
+                        document.getElementById(`checked_in_at_${deviceId}`).value = "—";
+                    } else {
+                        document.getElementById(`checked_in_at_${deviceId}`).value = result.checked_in_at;
+                    }
+        
+                    // Unterschrift löschen, wenn zurückgegeben
+                    if (result.signature_cleared) {
+                        document.querySelector(`#signature_${deviceId}`).innerHTML = "—";
+                    }
+                } else {
+                    showStatusMessage(result.error); // Fehlermeldung ausgeben
+                }
+            } catch (error) {
+                console.error("Fehler bei toggleStatus:", error);
+            }
+        }
+        </script>
+
 </head>
 <body>
     <h2>Admin Dashboard</h2>
+    <div id="statusMessage" class="status-message hidden"></div>
     <a href="{{ url_for('logout') }}">Logout</a>
     <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
 
-    <!-- Formular zum Hinzufügen eines neuen Geräts -->
     <h3>Neues Gerät hinzufügen</h3>
     <input type="text" id="new_inventory_number" placeholder="Inventarnummer">
     <button onclick="addDevice()">Gerät hinzufügen</button>
@@ -152,24 +193,11 @@
                 <td><input type="text" id="user_{{ device['id'] }}" value="{{ device['user'] if device['user'] else '' }}"></td>
                 <td><input type="text" id="checked_out_at_{{ device['id'] }}" value="{{ device['checked_out_at'] }}"></td>
                 <td><input type="text" id="checked_in_at_{{ device['id'] }}" value="{{ device['checked_in_at'] }}"></td>
-                <td>
-                    {% if device['signature'] %}
-                        <img src="{{ device['signature'] }}" alt="Unterschrift" width="100">
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-                <td id="status_{{ device['id'] }}">
-                    {% if device['user'] %}
-                        <span style="color: red; font-weight: bold;">In Benutzung</span>
-                    {% else %}
-                        <span style="color: green; font-weight: bold;">Verfügbar</span>
-                    {% endif %}
-                </td>
+                <td>{% if device['signature'] %}<img src="{{ device['signature'] }}" alt="Unterschrift" width="100">{% else %}—{% endif %}</td>
+                <td id="status_{{ device['id'] }}">{{ "In Benutzung" if device['user'] else "Verfügbar" }}</td>
                 <td>
                     <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
                     <button onclick="toggleStatus({{ device['id'] }})">Status ändern</button>
-                    <!-- Neuer Löschen-Button für das Gerät -->
                     <button onclick="deleteDevice({{ device['id'] }})">Löschen</button>
                 </td>
             </tr>

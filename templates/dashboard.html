@@ -29,9 +29,13 @@
     
             if (code) {
               document.getElementById("inventory_number").value = code.data;
-              video.classList.add("hidden"); // Kamera ausblenden
-              stream.getTracks().forEach(track => track.stop()); // Kamera deaktivieren
-              checkDeviceStatus(); // Statusprüfung nach Scan
+              
+              // Kamera und Video sofort stoppen
+              video.srcObject.getTracks().forEach(track => track.stop()); 
+              video.pause(); // Falls nötig, Player direkt anhalten
+              video.classList.add("hidden"); // Video ausblenden
+              
+              checkDeviceStatus(); // Automatische Statusprüfung nach Scan
             }
           }
           requestAnimationFrame(scanQrFrame);
@@ -82,7 +86,7 @@
         statusMessage.classList.remove("visible");
         statusMessage.classList.add("hidden");
         statusPlaceholder.classList.remove("hidden"); // Platzhalter wieder sichtbar machen
-      }, 3000);
+      }, 7000);
     }
     </script>
 

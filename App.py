@@ -162,7 +162,35 @@ def admin_area():
         device['checked_in_at'] = format_timestamp(device['checked_in_at'])
     return render_template('admin.html', devices=devices)
 
+
+@app.route("/admin/update_device/<int:device_id>", methods=["POST"])
+def update_device(device_id):
+    data = request.json
+    inventory_number = data.get("inventory_number")
+    user = data.get("user")
+    checked_out_at = data.get("checked_out_at")
+    checked_in_at = data.get("checked_in_at")
+
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT id FROM devices WHERE id = ?", (device_id,))
+    device = cursor.fetchone()
+
+    if not device:
+        return jsonify({"success": False, "error": "Gerät nicht gefunden"}), 404
+
+    conn.execute("""
+        UPDATE devices 
+        SET inventory_number = ?, user = ?, checked_out_at = ?, checked_in_at = ?
+        WHERE id = ?
+    """, (inventory_number, user, checked_out_at, checked_in_at, device_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "Gerät wurde erfolgreich aktualisiert."})
+
 # Check-out (User): bleibt unverändert
+
 
 @app.route('/check_out', methods=['POST'])
 @login_required
@@ -353,6 +381,45 @@ def admin_check_in():
     }), 200
 # --- Nutzerverwaltung im Admin-Bereich ---
 
+@app.route("/admin/toggle_status/<int:device_id>", methods=["POST"])
+def toggle_status(device_id):
+    from datetime import datetime
+
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT user FROM devices WHERE id = ?", (device_id,))
+    device = cursor.fetchone()
+
+    if not device:
+        return jsonify({"success": False, "error": "Gerät nicht gefunden"}), 404
+
+    if device["user"]:
+        # Gerät zurückgegeben → Unterschrift löschen
+        new_status = None
+        checked_in_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute("UPDATE devices SET user = ?, checked_in_at = ?, signature = NULL WHERE id = ?", (new_status, checked_in_at, device_id))
+    else:
+        # Prüfen, ob ein Benutzername vorhanden ist
+        user_name = request.json.get("user")
+        if not user_name:
+            return jsonify({"success": False, "error": "Bitte einen Benutzer eintragen, bevor das Gerät ausgeliehen wird."}), 400
+
+        # Gerät ausgeliehen
+        new_status = "checked_out"
+        checked_out_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        checked_in_at = "—"
+        conn.execute("UPDATE devices SET user = ?, checked_out_at = ? WHERE id = ?", (user_name, checked_out_at, device_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "new_status": new_status,
+        "checked_out_at": checked_out_at if new_status == "checked_out" else None,
+        "checked_in_at": checked_in_at if new_status is None else None,
+        "signature_cleared": True if new_status is None else False
+    })
+    
 @app.route('/admin/users')
 @admin_required
 def admin_users():
