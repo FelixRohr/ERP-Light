@@ -160,6 +160,68 @@
                 console.error("Fehler bei toggleStatus:", error);
             }
         }
+
+
+        async function refreshTable() {
+            try {
+                const response = await fetch("/admin/get_devices");
+                if (!response.ok) {
+                    throw new Error("Serverantwort war nicht OK");
+                }
+        
+                const devices = await response.json();
+        
+                devices.forEach(device => {
+                    // Inventarnummer aktualisieren, wenn Feld existiert
+                    const inventoryField = document.getElementById(`inventory_number_${device.id}`);
+                    if (inventoryField && inventoryField !== document.activeElement) {
+                        inventoryField.value = device.inventory_number;
+                    }
+        
+                    // Benutzername aktualisieren
+                    const userField = document.getElementById(`user_${device.id}`);
+                    if (userField && userField !== document.activeElement) {
+                        userField.value = device.user || "";
+                    }
+        
+                    // Zeitstempel aktualisieren
+                    const checkedOutField = document.getElementById(`checked_out_at_${device.id}`);
+                    if (checkedOutField && checkedOutField !== document.activeElement) {
+                        checkedOutField.value = device.checked_out_at || "";
+                    }
+        
+                    const checkedInField = document.getElementById(`checked_in_at_${device.id}`);
+                    if (checkedInField && checkedInField !== document.activeElement) {
+                        checkedInField.value = device.checked_in_at || "";
+                    }
+        
+                    // Unterschrift aktualisieren
+                    const signatureCell = document.getElementById(`signature_${device.id}`);
+                    if (signatureCell) {
+                        signatureCell.innerHTML = device.signature 
+                            ? (device.signature.startsWith("data:image") || device.signature.endsWith(".png") || device.signature.endsWith(".jpg") 
+                                ? `<img src="${device.signature}" alt="Unterschrift" width="100">` 
+                                : `<p><strong>${device.signature}</strong></p>`) 
+                            : "—";
+                    }
+        
+                    // Status aktualisieren
+                    const statusCell = document.getElementById(`status_${device.id}`);
+                    if (statusCell) {
+                        statusCell.innerHTML = device.user 
+                            ? '<span style="color: red; font-weight: bold;">In Benutzung</span>' 
+                            : '<span style="color: green; font-weight: bold;">Verfügbar</span>';
+                    }
+                });
+        
+                console.log("Tabelle erfolgreich aktualisiert!");
+            } catch (error) {
+                console.error("Fehler beim Aktualisieren der Tabelle:", error);
+            }
+        }
+        
+        // Automatische Aktualisierung alle 5 Sekunden
+        setInterval(refreshTable, 5000);
         
         </script>
 
@@ -198,7 +260,21 @@
                 <td><input type="text" id="user_{{ device['id'] }}" value="{{ device['user'] if device['user'] else '' }}"></td>
                 <td><input type="text" id="checked_out_at_{{ device['id'] }}" value="{{ device['checked_out_at'] }}"></td>
                 <td><input type="text" id="checked_in_at_{{ device['id'] }}" value="{{ device['checked_in_at'] }}"></td>
-                <td>{% if device['signature'] %}<img src="{{ device['signature'] }}" alt="Unterschrift" width="100">{% else %}—{% endif %}</td>
+                
+                <!-- Unterschrift als Benutzername anzeigen -->
+                <td id="signature_{{ device['id'] }}">
+                    {% if device['signature'] %}
+                        {% if device['signature'].startswith("data:image") or device['signature'].endswith(".png") or device['signature'].endswith(".jpg") %}
+                            <img src="{{ device['signature'] }}" alt="Unterschrift" width="100">
+                        {% else %}
+                            <p><strong>{{ device['signature'] }}</strong></p>
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                
+            
                 <td id="status_{{ device['id'] }}" style="color: {% if device['user'] %}red{% else %}green{% endif %}; font-weight: bold;">
                     {% if device['user'] %}
                         In Benutzung
@@ -206,6 +282,7 @@
                         Verfügbar
                     {% endif %}
                 </td>                
+            
                 <td>
                     <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
                     <button onclick="toggleStatus({{ device['id'] }})">Status ändern</button>

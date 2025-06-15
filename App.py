@@ -220,14 +220,14 @@ def check_out():
     if device:
         conn.execute("""
            UPDATE devices
-           SET user = ?, checked_out_at = ?, checked_in_at = NULL, signature = ?
+           SET user = ?, checked_out_at = ?, checked_in_at = ?, signature = ?
            WHERE inventory_number = ?
-        """, (borrower, now, signature, inventory_number))
+        """, (borrower, now, "NULL", signature, inventory_number))
     else:
         conn.execute("""
-           INSERT INTO devices (inventory_number, user, checked_out_at, signature)
-           VALUES (?, ?, ?, ?)
-        """, (inventory_number, borrower, now, signature))
+           INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, signature)
+           VALUES (?, ?, ?, ?, ?)
+        """, (inventory_number, borrower, now, "NULL", signature))
     
     conn.commit()
     conn.close()
@@ -257,7 +257,8 @@ def check_in():
         return jsonify({"error": "Gerät ist nicht ausgeliehen"}), 400
 
     now = datetime.utcnow().isoformat()
-    conn.execute("UPDATE devices SET user = NULL, checked_in_at = ? WHERE inventory_number = ?", (now, inventory_number))
+    human_now = format_timestamp(now)
+    conn.execute("UPDATE devices SET user = NULL, checked_in_at = ? WHERE inventory_number = ?", (human_now, inventory_number))
     conn.commit()
     conn.close()
     return jsonify({"message": f"Gerät {inventory_number} erfolgreich zurückgegeben."}), 200
@@ -349,8 +350,8 @@ def admin_check_out():
             (user, now, inventory_number))
     else:
         conn.execute(
-            "INSERT INTO devices (inventory_number, user, checked_out_at) VALUES (?, ?, ?)",
-            (inventory_number, user, now))
+            "INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at) VALUES (?, ?, ?, ?)",
+            (inventory_number, user, now, "NULL"))
     conn.commit()
     conn.close()
     return jsonify({
@@ -398,21 +399,27 @@ def toggle_status(device_id):
         return jsonify({"success": False, "error": "Gerät nicht gefunden"}), 404
 
     if device["user"]:
-        # Gerät zurückgegeben → Unterschrift löschen
+        # Gerät wird zurückgegeben -> Unterschrift löschen
         new_status = None
         checked_in_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn.execute("UPDATE devices SET user = ?, checked_in_at = ?, signature = NULL WHERE id = ?", (new_status, checked_in_at, device_id))
     else:
-        # Prüfen, ob ein Benutzername vorhanden ist
+        
+        admin_name = session.get("username")  # Holt den angemeldeten Admin aus der Session
+        if not admin_name:
+            return jsonify({"success": False, "error": "Admin nicht erkannt!"}), 400
+
         user_name = request.json.get("user")
         if not user_name:
             return jsonify({"success": False, "error": "Bitte einen Benutzer eintragen, bevor das Gerät ausgeliehen wird."}), 400
 
-        # Gerät ausgeliehen
+        # Gerät ausleihen -> Benutzername als Unterschrift speichern
         new_status = "checked_out"
         checked_out_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        checked_in_at = "—"
-        conn.execute("UPDATE devices SET user = ?, checked_out_at = ? WHERE id = ?", (user_name, checked_out_at, device_id))
+
+        # **Hier stellen wir sicher, dass checked_in_at gelöscht wird!**
+        conn.execute("UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL, signature = ? WHERE id = ?", 
+                     (user_name, checked_out_at, admin_name, device_id))
 
     conn.commit()
     conn.close()
@@ -422,7 +429,7 @@ def toggle_status(device_id):
         "new_status": new_status,
         "checked_out_at": checked_out_at if new_status == "checked_out" else None,
         "checked_in_at": checked_in_at if new_status is None else None,
-        "signature_cleared": True if new_status is None else False
+        "signature": user_name if new_status == "checked_out" else None
     })
     
 @app.route('/admin/users')
@@ -492,6 +499,15 @@ def device_status():
         return jsonify({"status": "available"})
     else:
         return jsonify({"status": "checked_out"})
+    
+
+@app.route("/admin/get_devices")
+def get_devices():
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT * FROM devices")
+    devices = cursor.fetchall()
+    conn.close()
+    return jsonify([dict(device) for device in devices])
 
 if __name__ == '__main__':
     init_db()
