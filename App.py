@@ -513,4 +513,5 @@ if __name__ == '__main__':
     init_db()
     import socket
     if 'liveconsole' not in socket.gethostname():
-        app.run(host='0.0.0.0', port=5000, debug=True)
+    
+        app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=("cert.pem", "key.pem"))
