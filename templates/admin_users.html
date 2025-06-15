@@ -39,5 +39,41 @@
             {% endfor %}
         </tbody>
     </table>
+    <h3>Passwort ändern</h3>
+    <p>Angemeldet als: <strong>{{ session["username"] }}</strong></p>
+
+<input type="password" id="current_password" placeholder="Aktuelles Passwort">
+<input type="password" id="new_password" placeholder="Neues Passwort">
+<button onclick="changePassword()">Passwort ändern</button>
+
+<script>
+async function changePassword() {
+    const currentPassword = document.getElementById("current_password").value.trim();
+    const newPassword = document.getElementById("new_password").value.trim();
+
+    if (!currentPassword || !newPassword) {
+        alert("Bitte alle Felder ausfüllen!");
+        return;
+    }
+
+    try {
+        const response = await fetch("/change_password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            alert("Passwort erfolgreich geändert!");
+        } else {
+            alert("Fehler: " + result.error);
+        }
+    } catch (error) {
+        console.error("Fehler beim Passwort ändern:", error);
+    }
+}
+</script>
+
 </body>
 </html>

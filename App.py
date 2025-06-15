@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, session, render_template, redirect, u
 import sqlite3
 from datetime import datetime
 import base64
-from werkzeug.security import generate_password_hash, check_password_hash
+import bcrypt
 from functools import wraps
 
 app = Flask(__name__)
@@ -73,9 +73,11 @@ def init_db():
         role TEXT NOT NULL
     )
     """)
+    #Generate Admin User with Password "admin" if no admin is available
     cursor.execute("SELECT * FROM users WHERE username = ?", ("admin",))
     if cursor.fetchone() is None:
-        admin_password = generate_password_hash("admin")
+        salt = bcrypt.gensalt()
+        admin_password = bcrypt.hashpw("admin".encode('utf-8'), salt)
         cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                        ("admin", admin_password, "admin"))
     conn.commit()
@@ -122,7 +124,7 @@ def login():
         user = cursor.fetchone()
         conn.close()
         
-        if user and check_password_hash(user['password'], password):
+        if user and bcrypt.checkpw(password.encode('utf-8'), user['password']):
             session['username'] = user['username']
             session['role'] = user['role']
             session.permanent = False  # Sitzung nur für den aktuellen Browser-Tab aktiv
@@ -452,7 +454,8 @@ def register_user():
     if not username or not password:
         flash("Benutzername und Passwort sind erforderlich!")
         return redirect(url_for('register_user'))
-    hashed_password = generate_password_hash(password)
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
     conn = get_db_connection()
     try:
         conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
@@ -509,9 +512,31 @@ def get_devices():
     conn.close()
     return jsonify([dict(device) for device in devices])
 
+@app.route("/change_password", methods=["POST"])
+@login_required
+def change_password():
+    data = request.json
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT password FROM users WHERE username = ?", (session["username"],))
+    user = cursor.fetchone()
+    if not user or not bcrypt.checkpw(current_password.encode('utf-8'), user['password']):
+        return jsonify({"success": False, "error": "Aktuelles Passwort ist falsch!"}), 400
+
+    salt = bcrypt.gensalt()
+    hashed_new_password = bcrypt.hashpw(new_password.encode('utf-8'), salt)
+    conn.execute("UPDATE users SET password = ? WHERE username = ?", (hashed_new_password, session["username"]))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "Passwort erfolgreich geändert!"})
+
+
 if __name__ == '__main__':
     init_db()
     import socket
     if 'liveconsole' not in socket.gethostname():
     
-        app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=("cert.pem", "key.pem"))
+        app.run(host='0.0.0.0', port=5000, debug=True)
