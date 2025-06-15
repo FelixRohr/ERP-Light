@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>User Dashboard</title>
+  {% if is_admin %}
+    <div class="admin-info">
+        <p>⚠️ Sie sind als Admin eingeloggt.</p>
+        <a href="{{ url_for('admin_area') }}" class="button">Zurück zum Admin-Dashboard</a>
+    </div>
+{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <script src="{{ url_for('static', filename='js/signature_pad.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/jsQR.js') }}"></script>

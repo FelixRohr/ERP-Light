@@ -115,6 +115,7 @@
             }
         }
 
+
         async function toggleStatus(deviceId) {
             const userField = document.getElementById(`user_${deviceId}`).value.trim();
         
@@ -159,14 +160,18 @@
                 console.error("Fehler bei toggleStatus:", error);
             }
         }
+        
         </script>
 
-</head>
+    </head>
 <body>
     <h2>Admin Dashboard</h2>
     <div id="statusMessage" class="status-message hidden"></div>
-    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+    <br>
     <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
+    <br>
+    <a href="{{ url_for('user_area') }}" class="button">Zum User-Dashboard</a>
 
     <h3>Neues Gerät hinzufügen</h3>
     <input type="text" id="new_inventory_number" placeholder="Inventarnummer">
@@ -194,7 +199,13 @@
                 <td><input type="text" id="checked_out_at_{{ device['id'] }}" value="{{ device['checked_out_at'] }}"></td>
                 <td><input type="text" id="checked_in_at_{{ device['id'] }}" value="{{ device['checked_in_at'] }}"></td>
                 <td>{% if device['signature'] %}<img src="{{ device['signature'] }}" alt="Unterschrift" width="100">{% else %}—{% endif %}</td>
-                <td id="status_{{ device['id'] }}">{{ "In Benutzung" if device['user'] else "Verfügbar" }}</td>
+                <td id="status_{{ device['id'] }}" style="color: {% if device['user'] %}red{% else %}green{% endif %}; font-weight: bold;">
+                    {% if device['user'] %}
+                        In Benutzung
+                    {% else %}
+                        Verfügbar
+                    {% endif %}
+                </td>                
                 <td>
                     <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
                     <button onclick="toggleStatus({{ device['id'] }})">Status ändern</button>

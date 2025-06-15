@@ -7,18 +7,13 @@
 </head>
 <body>
     <h2>Benutzerübersicht</h2>
+    <p>
     <a href="{{ url_for('admin_area') }}">Zurück zum Admin-Dashboard</a>
+    </p>
+    <p>
     <a href="{{ url_for('register_user') }}">Neuen Benutzer registrieren</a>
+    </p>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul>
-          {% for message in messages %}
-            <li>{{ message }}</li>
-          {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
 
     <table border="1">
         <thead>

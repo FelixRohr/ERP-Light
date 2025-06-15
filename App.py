@@ -125,6 +125,7 @@ def login():
         if user and check_password_hash(user['password'], password):
             session['username'] = user['username']
             session['role'] = user['role']
+            session.permanent = False  # Sitzung nur für den aktuellen Browser-Tab aktiv
             flash("Erfolgreich angemeldet!")
             if user['role'] == "admin":
                 return redirect(url_for('admin_area'))
@@ -144,10 +145,14 @@ def logout():
 @login_required
 def user_area():
     conn = get_db_connection()
+    
+    # Liste der registrierten Benutzer abrufen
     cursor = conn.execute("SELECT username FROM users")
     borrowers = [row['username'] for row in cursor.fetchall()]
     conn.close()
-    return render_template('dashboard.html', borrowers=borrowers)
+
+    # Adminprüfung über Session
+    return render_template('dashboard.html', borrowers=borrowers, is_admin=(session.get('role') == 'admin'))
 
 # Admin Geräteverwaltung
 @app.route('/admin')
