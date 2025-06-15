@@ -219,17 +219,18 @@ def check_out():
         return jsonify({"error": "Gerät bereits ausgeliehen"}), 400
     
     now = datetime.utcnow().isoformat()
+    human_now = format_timestamp(now)
     if device:
         conn.execute("""
            UPDATE devices
            SET user = ?, checked_out_at = ?, checked_in_at = ?, signature = ?
            WHERE inventory_number = ?
-        """, (borrower, now, "NULL", signature, inventory_number))
+        """, (borrower, human_now, "-", signature, inventory_number))
     else:
         conn.execute("""
            INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, signature)
            VALUES (?, ?, ?, ?, ?)
-        """, (inventory_number, borrower, now, "NULL", signature))
+        """, (inventory_number, borrower, now, "-", signature))
     
     conn.commit()
     conn.close()
@@ -353,7 +354,7 @@ def admin_check_out():
     else:
         conn.execute(
             "INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at) VALUES (?, ?, ?, ?)",
-            (inventory_number, user, now, "NULL"))
+            (inventory_number, user, now, "-"))
     conn.commit()
     conn.close()
     return jsonify({
@@ -539,4 +540,4 @@ if __name__ == '__main__':
     import socket
     if 'liveconsole' not in socket.gethostname():
     
-        app.run(host='0.0.0.0', port=5000, debug=True)
+        app.run(host='0.0.0.0', port=5000)
