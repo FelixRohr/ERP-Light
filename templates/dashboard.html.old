@@ -38,7 +38,7 @@ if ("serviceWorker" in navigator) {
       window.addEventListener("resize", resizeCanvas);
       resizeCanvas();
 
-      // Dynamische Statusprüfung beim Verlassen des Inventarnummer-Feldes
+      // Dynamische Statusprüfung beim Verlassen des OPTA (Name)-Feldes
       const inventoryInput = document.getElementById("inventory_number");
       const actionButton = document.getElementById("actionButton");
 
@@ -108,7 +108,7 @@ if ("serviceWorker" in navigator) {
     async function checkInDevice() {
       const inventoryNumber = document.getElementById('inventory_number').value.trim();
       if (!inventoryNumber) {
-         alert("Bitte Inventarnummer eingeben.");
+         alert("Bitte OPTA (Name) eingeben.");
          return;
       }
       try {
@@ -129,7 +129,7 @@ if ("serviceWorker" in navigator) {
   <h2>User Dashboard</h2>
   <a href="{{ url_for('logout') }}">Logout</a>
   <div>
-      <label for="inventory_number">Inventarnummer (QR-Code oder manuelle Eingabe):</label>
+      <label for="inventory_number">OPTA (Name) (QR-Code oder manuelle Eingabe):</label>
       <input type="text" id="inventory_number" name="inventory_number">
   </div>
   <div>

@@ -70,7 +70,7 @@
         async function addDevice() {
             const inventoryNumber = document.getElementById("new_inventory_number").value.trim();
             if (!inventoryNumber) {
-                showStatusMessage("Bitte geben Sie eine Inventarnummer ein.");
+                showStatusMessage("Bitte geben Sie eine OPTA (Name) ein.");
                 return;
             }
             const response = await fetch("/admin/add_device", {
@@ -90,7 +90,7 @@
             const checkedInAt = document.getElementById(`checked_in_at_${deviceId}`).value.trim();
         
             if (!inventoryNumber) {
-                showStatusMessage("Die Inventarnummer darf nicht leer sein.");
+                showStatusMessage("Die OPTA (Name) darf nicht leer sein.");
                 return;
             }
         
@@ -172,7 +172,7 @@
                 const devices = await response.json();
         
                 devices.forEach(device => {
-                    // Inventarnummer aktualisieren, wenn Feld existiert
+                    // OPTA (Name) aktualisieren, wenn Feld existiert
                     const inventoryField = document.getElementById(`inventory_number_${device.id}`);
                     if (inventoryField && inventoryField !== document.activeElement) {
                         inventoryField.value = device.inventory_number;
@@ -233,17 +233,23 @@
     <br>
     <a href="{{ url_for('admin_users') }}">Benutzerverwaltung</a>
     <br>
+    <p>
     <a href="{{ url_for('user_area') }}" class="button">Zum User-Dashboard</a>
-
+    </p>
+    <p>
+    <a href="{{ url_for('export_pdf') }}">
+        <button>Daten exportieren</button>
+      </a>
+    </p>
     <h3>Neues Gerät hinzufügen</h3>
-    <input type="text" id="new_inventory_number" placeholder="Inventarnummer">
+    <input type="text" id="new_inventory_number" placeholder="OPTA (Name)">
     <button onclick="addDevice()">Gerät hinzufügen</button>
 
     <table id="adminTable" border="1">
         <thead>
             <tr>
                 <th onclick="sortTable(0)">ID</th>
-                <th onclick="sortTable(1)">Inventarnummer</th>
+                <th onclick="sortTable(1)">OPTA (Name)</th>
                 <th onclick="sortTable(2)">User</th>
                 <th onclick="sortTable(3)">Ausgeliehen am</th>
                 <th onclick="sortTable(4)">Zurückgegeben am</th>

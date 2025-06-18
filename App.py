@@ -1,17 +1,35 @@
-from flask import Flask, request, jsonify, session, render_template, redirect, url_for, flash
-import sqlite3
+from flask import Flask, request, jsonify, session, render_template, redirect, url_for, flash, send_file
+import sqlite3, bcrypt, os, io
 from datetime import datetime
-import base64
-import bcrypt
 from functools import wraps
+import xlsxwriter
+import base64
+
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
 
 app = Flask(__name__)
 app.secret_key = 'dein_geheimer_schluessel'  # In der Produktion bitte einen sicheren Schlüssel verwenden!
 
-DB_PATH = "devices.db"
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+
+# DB_DIR = "\\192.168.8.254\ELW_CLOUD\Dokumente\Datenbank"
+DB_DIR = os.path.join("C:\\", "git")
+DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
+DB_PATH = None
+
+def list_available_databases():
+    if not os.path.exists(DB_DIR):
+        print("path non existend")
+        return [DB_PATH_Backup] 
+    return [f for f in os.listdir(DB_DIR) if f.endswith(".db") and os.path.isfile(os.path.join(DB_DIR, f))]
+
+
+
+
+def get_db_connection(db_path):
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -51,9 +69,10 @@ def parse_timestamp_field(ts):
                 return ts
 
 def init_db():
+    
     """Erstellt die Tabellen devices und users, falls diese noch nicht existieren.
        Legt einen Default-Admin an, falls nicht vorhanden."""
-    conn = get_db_connection()
+    conn = get_db_connection(DB_PATH_Backup)
     cursor = conn.cursor()
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS devices (
@@ -104,6 +123,79 @@ def admin_required(f):
 
 # --- Routen & Endpoints ---
 
+@app.route('/export_pdf')
+def export_pdf():
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    
+    conn = get_db_connection(session["db_path"])
+    devices = conn.execute("SELECT * FROM devices").fetchall()
+    conn.close()
+
+    data = [["OPTA (Name)", "User", "Ausgeliehen", "Zurückgegeben", "Unterschrift"]]
+    for device in devices:
+        row = [device["inventory_number"], device["user"], device["checked_out_at"], device["checked_in_at"]]
+        sig = device["signature"]
+        if sig and sig.startswith("data:image/"):
+            try:
+                img_data = io.BytesIO(base64.b64decode(sig.split(",")[1]))
+                img = Image(img_data, width=80, height=40)
+                row.append(img)
+            except:
+                row.append("Fehler")
+        else:
+            row.append(sig or "")
+        data.append(row)
+
+    table = Table(data)
+    table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.5, colors.grey)]))
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    now = datetime.utcnow().isoformat()
+    human_now = format_timestamp(now)
+    return send_file(buffer, as_attachment=True, download_name=f"Funkdatenbank_export_{human_now}.pdf", mimetype="application/pdf")
+
+
+@app.route('/export_excel')
+@admin_required
+def export_excel():
+    conn = get_db_connection(session["db_path"])
+    cursor = conn.execute("SELECT * FROM devices")
+    devices = cursor.fetchall()
+    conn.close()
+
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    worksheet = workbook.add_worksheet("Geräte")
+
+    headers = ["ID", "OPTA (Name)", "User", "Ausgeliehen am", "Zurückgegeben am", "Unterschrift"]
+    for col_num, header in enumerate(headers):
+        worksheet.write(0, col_num, header)
+
+    for row_num, device in enumerate(devices, start=1):
+        for col_num, key in enumerate(["id", "inventory_number", "user", "checked_out_at", "checked_in_at"]):
+            worksheet.write(row_num, col_num, device[key])
+        
+        # Signature-Spalte
+        sig = device["signature"]
+        if sig and sig.startswith("data:image/"):
+            try:
+                image_data = base64.b64decode(sig.split(",")[1])
+                image_stream = io.BytesIO(image_data)
+                worksheet.insert_image(row_num, 5, "signature.png", {'image_data': image_stream, 'x_scale': 0.5, 'y_scale': 0.5})
+            except Exception as e:
+                worksheet.write(row_num, 5, "[Bild defekt]")
+        else:
+            worksheet.write(row_num, 5, sig if sig else "")
+
+    workbook.close()
+    output.seek(0)
+
+    return send_file(output, as_attachment=True, download_name="geraete_export.xlsx", mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 @app.route('/')
 def index():
     if 'username' in session:
@@ -119,7 +211,20 @@ def login():
         username = request.form.get("username")
         password = request.form.get("password")
         
-        conn = get_db_connection()
+        db_name = request.form.get("db_name")
+        
+        try:
+            session["db_path"] = os.path.join(DB_DIR, db_name)
+            print(session["db_path"])
+        except:
+            pass
+
+        if not os.path.exists(session["db_path"]):
+            session["db_path"] = DB_PATH_Backup
+            return "⚠️ Die ausgewählte Datenbank existiert nicht oder ist nicht erreichbar.", 404
+
+        
+        conn = get_db_connection(session["db_path"])
         cursor = conn.execute("SELECT * FROM users WHERE username = ?", (username,))
         user = cursor.fetchone()
         conn.close()
@@ -135,7 +240,10 @@ def login():
                 return redirect(url_for('user_area'))
         else:
             flash("Ungültige Anmeldedaten")
-    return render_template('login.html')
+    databases = list_available_databases()
+    return render_template("login.html", databases=databases)
+
+
 
 @app.route('/logout')
 def logout():
@@ -146,7 +254,7 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def user_area():
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     
     # Liste der registrierten Benutzer abrufen
     cursor = conn.execute("SELECT username FROM users")
@@ -160,7 +268,7 @@ def user_area():
 @app.route('/admin')
 @admin_required
 def admin_area():
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices")
     devices = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -178,7 +286,7 @@ def update_device(device_id):
     checked_out_at = data.get("checked_out_at")
     checked_in_at = data.get("checked_in_at")
 
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT id FROM devices WHERE id = ?", (device_id,))
     device = cursor.fetchone()
 
@@ -208,9 +316,9 @@ def check_out():
     signature = data.get('signature')
     
     if not inventory_number or not borrower or not signature or signature.strip() == "":
-        return jsonify({"error": "Inventarnummer, Borrower und Unterschrift sind erforderlich."}), 400
+        return jsonify({"error": "OPTA (Name), Borrower und Unterschrift sind erforderlich."}), 400
     
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
     
@@ -245,9 +353,9 @@ def check_in():
     inventory_number = data.get('inventory_number')
     
     if not inventory_number:
-        return jsonify({"error": "Inventarnummer erforderlich"}), 400
+        return jsonify({"error": "OPTA (Name) erforderlich"}), 400
 
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
 
@@ -261,7 +369,7 @@ def check_in():
 
     now = datetime.utcnow().isoformat()
     human_now = format_timestamp(now)
-    conn.execute("UPDATE devices SET user = NULL, checked_in_at = ? WHERE inventory_number = ?", (human_now, inventory_number))
+    conn.execute("UPDATE devices SET checked_in_at = ? WHERE inventory_number = ?", (human_now, inventory_number))
     conn.commit()
     conn.close()
     return jsonify({"message": f"Gerät {inventory_number} erfolgreich zurückgegeben."}), 200
@@ -276,7 +384,7 @@ def save_signature():
     if not signature_data or not inventory_number:
         return jsonify({"error": "Signature and inventory number are required"}), 400
     
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     conn.execute("UPDATE devices SET signature = ? WHERE inventory_number = ?", (signature_data, inventory_number))
     conn.commit()
     conn.close()
@@ -299,7 +407,7 @@ def edit_device():
     parsed_checked_out_at = parse_timestamp_field(checked_out_at)
     parsed_checked_in_at = parse_timestamp_field(checked_in_at)
     
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     conn.execute("""
         UPDATE devices
         SET inventory_number = ?, user = ?, checked_out_at = ?, checked_in_at = ?
@@ -316,9 +424,9 @@ def add_device():
     data = request.json
     inventory_number = data.get('inventory_number')
     if not inventory_number:
-        return jsonify({"error": "Inventarnummer is required"}), 400
+        return jsonify({"error": "OPTA (Name) is required"}), 400
 
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     try:
         conn.execute("INSERT INTO devices (inventory_number) VALUES (?)", (inventory_number,))
         conn.commit()
@@ -337,8 +445,8 @@ def admin_check_out():
     inventory_number = data.get('inventory_number')
     user = data.get('user')
     if not inventory_number or not user:
-        return jsonify({"error": "Inventarnummer und Benutzer sind erforderlich."}), 400
-    conn = get_db_connection()
+        return jsonify({"error": "OPTA (Name) und Benutzer sind erforderlich."}), 400
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
     if device and device['user'] is not None:
@@ -369,8 +477,8 @@ def admin_check_in():
     data = request.json
     inventory_number = data.get('inventory_number')
     if not inventory_number:
-        return jsonify({"error": "Inventarnummer ist erforderlich."}), 400
-    conn = get_db_connection()
+        return jsonify({"error": "OPTA (Name) ist erforderlich."}), 400
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
     if not device:
@@ -381,7 +489,7 @@ def admin_check_in():
         return jsonify({"error": "Gerät ist bereits verfügbar."}), 400
     now = datetime.utcnow().isoformat()
     human_now = format_timestamp(now)
-    conn.execute("UPDATE devices SET user = NULL, checked_in_at = ? WHERE inventory_number = ?", (now, inventory_number))
+    conn.execute("UPDATE devices SET checked_in_at = ? WHERE inventory_number = ?", (now, inventory_number))
     conn.commit()
     conn.close()
     return jsonify({
@@ -394,7 +502,7 @@ def admin_check_in():
 def toggle_status(device_id):
     from datetime import datetime
 
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT user FROM devices WHERE id = ?", (device_id,))
     device = cursor.fetchone()
 
@@ -405,7 +513,7 @@ def toggle_status(device_id):
         # Gerät wird zurückgegeben -> Unterschrift löschen
         new_status = None
         checked_in_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute("UPDATE devices SET user = ?, checked_in_at = ?, signature = NULL WHERE id = ?", (new_status, checked_in_at, device_id))
+        conn.execute("UPDATE devices SET checked_in_at = ?, signature = NULL WHERE id = ?", (checked_in_at, device_id))
     else:
         
         admin_name = session.get("username")  # Holt den angemeldeten Admin aus der Session
@@ -438,7 +546,7 @@ def toggle_status(device_id):
 @app.route('/admin/users')
 @admin_required
 def admin_users():
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT id, username, role FROM users")
     users = cursor.fetchall()
     conn.close()
@@ -457,7 +565,7 @@ def register_user():
         return redirect(url_for('register_user'))
     salt = bcrypt.gensalt()
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     try:
         conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                     (username, hashed_password, role))
@@ -472,7 +580,7 @@ def register_user():
 @app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
 @admin_required
 def delete_user(user_id):
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
@@ -482,7 +590,7 @@ def delete_user(user_id):
 @app.route('/admin/delete_device/<int:device_id>', methods=['POST'])
 @admin_required
 def delete_device(device_id):
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
     conn.commit()
     conn.close()
@@ -493,8 +601,8 @@ def delete_device(device_id):
 def device_status():
     inventory_number = request.args.get('inventory_number')
     if not inventory_number:
-        return jsonify({"error": "Inventarnummer fehlt"}), 400
-    conn = get_db_connection()
+        return jsonify({"error": "OPTA (Name) fehlt"}), 400
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT user FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
     conn.close()
@@ -507,7 +615,7 @@ def device_status():
 
 @app.route("/admin/get_devices")
 def get_devices():
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices")
     devices = cursor.fetchall()
     conn.close()
@@ -520,7 +628,7 @@ def change_password():
     current_password = data.get("current_password")
     new_password = data.get("new_password")
 
-    conn = get_db_connection()
+    conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT password FROM users WHERE username = ?", (session["username"],))
     user = cursor.fetchone()
     if not user or not bcrypt.checkpw(current_password.encode('utf-8'), user['password']):
@@ -538,6 +646,5 @@ def change_password():
 if __name__ == '__main__':
     init_db()
     import socket
-    if 'liveconsole' not in socket.gethostname():
-    
+    if 'liveconsole' not in socket.gethostname():    
         app.run(host='0.0.0.0', port=5000)

@@ -7,8 +7,15 @@
 </head>
 <body>
   <h2>Anmeldung</h2>
-
   <form method="post" action="{{ url_for('login') }}">
+    <p>
+    <label for="db_name">Datenbank auswählen:</label>
+    <select id="db_name" name="db_name" required>
+      {% for db in databases %}
+        <option value="{{ db }}">{{ db }}</option>
+      {% endfor %}
+    </select>
+  </p>
     <label for="username">Benutzername:</label>
     <input type="text" id="username" name="username" required>
     <br>
