@@ -14,7 +14,7 @@ app.secret_key = 'dein_geheimer_schluessel'  # In der Produktion bitte einen sic
 
 
 #DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
-DB_DIR = "./"
+DB_DIR = "/home/funk-erp/"
 #DB_DIR = os.path.join("C:\\", "git")
 DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
 DB_PATH = None
