@@ -1,1 +1,4 @@
-gunicorn -w 4 -b 0.0.0.0:8000 "App.py:create_app"
+#!/bin/bash
+source /home/funk-erp/ERP-Light/venv/bin/activate
+python3 /home/funk-erp/ERP-Light/start_app.py
+

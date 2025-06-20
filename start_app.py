@@ -3,6 +3,7 @@ import os
 import subprocess
 import platform
 
+
 def ensure_requirements():
     if not os.path.exists("requirements.txt"):
         print("⚙️ requirements.txt nicht gefunden – wird erstellt...")
