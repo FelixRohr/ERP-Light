@@ -29,7 +29,7 @@ def list_available_databases():
 
 
 def get_db_connection(db_path):
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -647,4 +647,4 @@ if __name__ == '__main__':
     init_db()
     import socket
     if 'liveconsole' not in socket.gethostname():    
-        app.run(host='0.0.0.0', port=5000)
+        app.run(host='0.0.0.0', port=5000, debug=False)
