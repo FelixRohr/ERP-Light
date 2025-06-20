@@ -5,6 +5,7 @@ from functools import wraps
 import xlsxwriter
 import base64
 
+from datetime import timezone
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -12,12 +13,21 @@ from reportlab.lib.pagesizes import A4
 app = Flask(__name__)
 app.secret_key = 'dein_geheimer_schluessel'  # In der Produktion bitte einen sicheren Schlüssel verwenden!
 
-
-#DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
-DB_DIR = "/home/funk-erp/"
-#DB_DIR = os.path.join("C:\\", "git")
-DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
 DB_PATH = None
+
+#Currently read only
+#DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
+
+#working on pi
+# DB_DIR = "/home/funk-erp/"
+
+# working on test pc
+DB_DIR = os.path.join("C:\\", "git")
+
+DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
+
+status_signed_out = "checked_out"
+status_signed_in = "available"
 
 def list_available_databases():
     if not os.path.exists(DB_DIR):
@@ -82,6 +92,7 @@ def init_db():
         user TEXT,
         checked_out_at TEXT,
         checked_in_at TEXT,
+        status TEXT,
         signature TEXT
     )
     """)
@@ -128,39 +139,37 @@ def admin_required(f):
 def export_pdf():
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
-    elements = []
-    
     conn = get_db_connection(session["db_path"])
     devices = conn.execute("SELECT * FROM devices").fetchall()
     conn.close()
 
-    data = [["OPTA (Name)", "User", "Ausgeliehen", "Zurückgegeben", "Unterschrift"]]
+    data = [["OPTA (Name)", "User", "Ausgeliehen", "Zurückgegeben", "Status", "Unterschrift"]]
     for device in devices:
-        row = [device["inventory_number"], device["user"], device["checked_out_at"], device["checked_in_at"]]
+        row = [device["inventory_number"], device["user"], device["checked_out_at"], device["checked_in_at"], device["status"]]
         sig = device["signature"]
+        
         if sig and sig.startswith("data:image/"):
             try:
                 img_data = io.BytesIO(base64.b64decode(sig.split(",")[1]))
                 img = Image(img_data, width=80, height=40)
                 row.append(img)
-            except:
-                row.append("Fehler")
-        else:
+            except Exception as e:
+                row.append(f"Fehler{e}")
+        else: 
             row.append(sig or "")
         data.append(row)
 
     table = Table(data)
     table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.5, colors.grey)]))
-    elements.append(table)
-
+    elements = [table]
     doc.build(elements)
     buffer.seek(0)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     human_now = format_timestamp(now)
     return send_file(buffer, as_attachment=True, download_name=f"Funkdatenbank_export_{human_now}.pdf", mimetype="application/pdf")
 
 
-@app.route('/export_excel')
+@app.route('/export_ek')
 @admin_required
 def export_excel():
     conn = get_db_connection(session["db_path"])
@@ -276,6 +285,7 @@ def admin_area():
     for device in devices:
         device['checked_out_at'] = format_timestamp(device['checked_out_at'])
         device['checked_in_at'] = format_timestamp(device['checked_in_at'])
+        device['status'] = device['status']
     return render_template('admin.html', devices=devices)
 
 
@@ -286,6 +296,7 @@ def update_device(device_id):
     user = data.get("user")
     checked_out_at = data.get("checked_out_at")
     checked_in_at = data.get("checked_in_at")
+    status = data.get("status")
 
     conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT id FROM devices WHERE id = ?", (device_id,))
@@ -296,9 +307,9 @@ def update_device(device_id):
 
     conn.execute("""
         UPDATE devices 
-        SET inventory_number = ?, user = ?, checked_out_at = ?, checked_in_at = ?
+        SET inventory_number = ?, user = ?, checked_out_at = ?, checked_in_at = ?, status = ?
         WHERE id = ?
-    """, (inventory_number, user, checked_out_at, checked_in_at, device_id))
+    """, (inventory_number, user, checked_out_at, checked_in_at, status, device_id))
 
     conn.commit()
     conn.close()
@@ -315,6 +326,7 @@ def check_out():
     inventory_number = data.get('inventory_number')
     borrower = data.get('borrower')
     signature = data.get('signature')
+    status = data.get('status')
     
     if not inventory_number or not borrower or not signature or signature.strip() == "":
         return jsonify({"error": "OPTA (Name), Borrower und Unterschrift sind erforderlich."}), 400
@@ -327,19 +339,19 @@ def check_out():
         conn.close()
         return jsonify({"error": "Gerät bereits ausgeliehen"}), 400
     
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     human_now = format_timestamp(now)
     if device:
         conn.execute("""
            UPDATE devices
-           SET user = ?, checked_out_at = ?, checked_in_at = ?, signature = ?
+           SET user = ?, checked_out_at = ?, checked_in_at = ?, status= ?, signature = ?
            WHERE inventory_number = ?
-        """, (borrower, human_now, "-", signature, inventory_number))
+        """, (borrower, human_now, "-", status_signed_out, signature, inventory_number))
     else:
         conn.execute("""
-           INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, signature)
-           VALUES (?, ?, ?, ?, ?)
-        """, (inventory_number, borrower, now, "-", signature))
+           INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, status, signature)
+           VALUES (?, ?, ?, ?, ?, ?)
+        """, (inventory_number, borrower, now, "-", status_signed_out,  signature))
     
     conn.commit()
     conn.close()
@@ -364,13 +376,14 @@ def check_in():
         conn.close()
         return jsonify({"error": "Gerät existiert nicht"}), 404
 
-    if device['user'] is None:
+    if device['status'] != status_signed_out:
         conn.close()
         return jsonify({"error": "Gerät ist nicht ausgeliehen"}), 400
 
-    now = datetime.utcnow().isoformat()
+
+    now = datetime.now(timezone.utc).isoformat()
     human_now = format_timestamp(now)
-    conn.execute("UPDATE devices SET checked_in_at = ? WHERE inventory_number = ?", (human_now, inventory_number))
+    conn.execute("UPDATE devices SET checked_in_at = ?, status = ? WHERE inventory_number = ?", (human_now, status_signed_in, inventory_number))
     conn.commit()
     conn.close()
     return jsonify({"message": f"Gerät {inventory_number} erfolgreich zurückgegeben."}), 200
@@ -401,6 +414,7 @@ def edit_device():
     user_assigned = data.get("user")
     checked_out_at = data.get("checked_out_at")
     checked_in_at = data.get("checked_in_at")
+    status = data.get("status")
     
     if not device_id:
         return jsonify({"error": "Device ID is required"}), 400
@@ -411,9 +425,9 @@ def edit_device():
     conn = get_db_connection(session["db_path"])
     conn.execute("""
         UPDATE devices
-        SET inventory_number = ?, user = ?, checked_out_at = ?, checked_in_at = ?
+        SET inventory_number = ?, user = ?, checked_out_at = ?, checked_in_at = ?, status = ?
         WHERE id = ?
-    """, (inventory_number, user_assigned, parsed_checked_out_at, parsed_checked_in_at, device_id))
+    """, (inventory_number, user_assigned, parsed_checked_out_at, parsed_checked_in_at, status, device_id))
     conn.commit()
     conn.close()
     return jsonify({"message": "Gerät aktualisiert"}), 200
@@ -453,22 +467,23 @@ def admin_check_out():
     if device and device['user'] is not None:
         conn.close()
         return jsonify({"error": "Gerät wurde bereits ausgeliehen."}), 400
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     # Konvertiere den ISO-Zeitstempel in ein menschenlesbares Format:
     human_now = format_timestamp(now)
     if device:
         conn.execute(
-            "UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL WHERE inventory_number = ?",
-            (user, now, inventory_number))
+            "UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL, status = ? WHERE inventory_number = ?",
+            (user, now, inventory_number, status_signed_out))
     else:
         conn.execute(
-            "INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at) VALUES (?, ?, ?, ?)",
-            (inventory_number, user, now, "-"))
+            "INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, status = ? ) VALUES (?, ?, ?, ?)",
+            (inventory_number, user, now, status_signed_out, "-"))
     conn.commit()
     conn.close()
     return jsonify({
         "message": f"Gerät {inventory_number} wurde erfolgreich an {user} ausgecheckt (Admin).",
-        "checked_out_at": human_now  # Rückgabe des formatierten Zeitstempels
+        "checked_out_at": human_now,  # Rückgabe des formatierten Zeitstempels
+        "status": status_signed_in
     }), 200
 
 # Admin Check-in ohne Unterschrift (Gerät wird als "Verfügbar" markiert)
@@ -488,14 +503,15 @@ def admin_check_in():
     if device['user'] is None:
         conn.close()
         return jsonify({"error": "Gerät ist bereits verfügbar."}), 400
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     human_now = format_timestamp(now)
-    conn.execute("UPDATE devices SET checked_in_at = ? WHERE inventory_number = ?", (now, inventory_number))
+    conn.execute("UPDATE devices SET checked_in_at = ?, status = ? WHERE inventory_number = ?", (human_now, status_signed_in, inventory_number))
     conn.commit()
     conn.close()
     return jsonify({
         "message": f"Gerät {inventory_number} wurde erfolgreich eingecheckt (Admin).",
-        "checked_in_at": human_now  # Rückgabe des formatierten Rückgabezeitpunkts
+        "checked_in_at": human_now,  # Rückgabe des formatierten Rückgabezeitpunkts
+        "status": status_signed_in 
     }), 200
 # --- Nutzerverwaltung im Admin-Bereich ---
 
@@ -514,7 +530,8 @@ def toggle_status(device_id):
         # Gerät wird zurückgegeben -> Unterschrift löschen
         new_status = None
         checked_in_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute("UPDATE devices SET checked_in_at = ?, signature = NULL WHERE id = ?", (checked_in_at, device_id))
+        conn.execute("UPDATE devices SET checked_in_at = ?, status = ?, signature = NULL WHERE id = ?", (checked_in_at, status_signed_in, device_id))
+        state = status_signed_in
     else:
         
         admin_name = session.get("username")  # Holt den angemeldeten Admin aus der Session
@@ -530,8 +547,9 @@ def toggle_status(device_id):
         checked_out_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # **Hier stellen wir sicher, dass checked_in_at gelöscht wird!**
-        conn.execute("UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL, signature = ? WHERE id = ?", 
-                     (user_name, checked_out_at, admin_name, device_id))
+        conn.execute("UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL, status = ?, signature = ? WHERE id = ?", 
+                     (user_name, checked_out_at, admin_name, status_signed_out, device_id))
+        state = status_signed_out
 
     conn.commit()
     conn.close()
@@ -541,8 +559,9 @@ def toggle_status(device_id):
         "new_status": new_status,
         "checked_out_at": checked_out_at if new_status == "checked_out" else None,
         "checked_in_at": checked_in_at if new_status is None else None,
+        "status": state,
         "signature": user_name if new_status == "checked_out" else None
-    })
+    }), 200
     
 @app.route('/admin/users')
 @admin_required
@@ -604,12 +623,13 @@ def device_status():
     inventory_number = request.args.get('inventory_number')
     if not inventory_number:
         return jsonify({"error": "OPTA (Name) fehlt"}), 400
+
     conn = get_db_connection(session["db_path"])
-    cursor = conn.execute("SELECT user FROM devices WHERE inventory_number = ?", (inventory_number,))
+    cursor = conn.execute("SELECT user, status FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
     conn.close()
-    # Gerät existiert nicht oder ist verfügbar (user ist NULL)
-    if not device or device['user'] is None:
+
+    if not device or device['status'] == status_signed_in:
         return jsonify({"status": "available"})
     else:
         return jsonify({"status": "checked_out"})

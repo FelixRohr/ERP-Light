@@ -281,13 +281,14 @@
                 </td>
                 
             
-                <td id="status_{{ device['id'] }}" style="color: {% if device['user'] %}red{% else %}green{% endif %}; font-weight: bold;">
-                    {% if device['user'] %}
+                <td id="status_{{ device.id }}" style="color: {% if device.status == 'checked_out' %}red{% else %}green{% endif %}; font-weight: bold;">
+                    {% if device.status == 'checked_out' %}
                         In Benutzung
                     {% else %}
                         Verfügbar
                     {% endif %}
-                </td>                
+                </td>
+                               
             
                 <td>
                     <button onclick="updateDevice({{ device['id'] }})">Speichern</button>
