@@ -13,8 +13,8 @@ app = Flask(__name__)
 app.secret_key = 'dein_geheimer_schluessel'  # In der Produktion bitte einen sicheren Schlüssel verwenden!
 
 
-DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
-#DB_DIR = "\\192.168.8.254\ELW_CLOUD\Dokumente\Datenbank"
+#DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
+DB_DIR = "./"
 #DB_DIR = os.path.join("C:\\", "git")
 DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
 DB_PATH = None
@@ -29,6 +29,7 @@ def list_available_databases():
 
 
 def get_db_connection(db_path):
+    
     conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -570,11 +571,12 @@ def register_user():
         conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                     (username, hashed_password, role))
         conn.commit()
-        flash("Benutzer erfolgreich registriert!")
+        conn.close()
     except sqlite3.IntegrityError:
         flash("Benutzername bereits vergeben!")
     finally:
         conn.close()
+    conn.close()
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
