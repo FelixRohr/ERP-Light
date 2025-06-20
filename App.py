@@ -13,9 +13,9 @@ app = Flask(__name__)
 app.secret_key = 'dein_geheimer_schluessel'  # In der Produktion bitte einen sicheren Schlüssel verwenden!
 
 
-
-# DB_DIR = "\\192.168.8.254\ELW_CLOUD\Dokumente\Datenbank"
-DB_DIR = os.path.join("C:\\", "git")
+DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
+#DB_DIR = "\\192.168.8.254\ELW_CLOUD\Dokumente\Datenbank"
+#DB_DIR = os.path.join("C:\\", "git")
 DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
 DB_PATH = None
 
