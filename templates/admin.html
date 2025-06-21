@@ -205,13 +205,13 @@
                             : "—";
                     }
         
-                    // Status aktualisieren
                     const statusCell = document.getElementById(`status_${device.id}`);
                     if (statusCell) {
-                        statusCell.innerHTML = device.user 
-                            ? '<span style="color: red; font-weight: bold;">In Benutzung</span>' 
+                        statusCell.innerHTML = device.status === "checked_out"
+                            ? '<span style="color: red; font-weight: bold;">In Benutzung</span>'
                             : '<span style="color: green; font-weight: bold;">Verfügbar</span>';
                     }
+                    
                 });
         
                 console.log("Tabelle erfolgreich aktualisiert!");

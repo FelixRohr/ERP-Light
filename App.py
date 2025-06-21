@@ -383,7 +383,7 @@ def check_in():
 
     now = datetime.now(timezone.utc).isoformat()
     human_now = format_timestamp(now)
-    conn.execute("UPDATE devices SET checked_in_at = ?, status = ? WHERE inventory_number = ?", (human_now, status_signed_in, inventory_number))
+    conn.execute("UPDATE devices SET checked_in_at = ?, user = ?, checked_out_at = ?, status = ? WHERE inventory_number = ?", (human_now, None, None, status_signed_in, inventory_number))
     conn.commit()
     conn.close()
     return jsonify({"message": f"Gerät {inventory_number} erfolgreich zurückgegeben."}), 200
