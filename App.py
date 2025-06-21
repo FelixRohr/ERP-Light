@@ -351,7 +351,7 @@ def check_out():
         conn.execute("""
            INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, status, signature)
            VALUES (?, ?, ?, ?, ?, ?)
-        """, (inventory_number, borrower, now, "-", status_signed_out,  signature))
+        """, (inventory_number, borrower, human_now, "-", status_signed_out,  signature))
     
     conn.commit()
     conn.close()
@@ -473,11 +473,11 @@ def admin_check_out():
     if device:
         conn.execute(
             "UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL, status = ? WHERE inventory_number = ?",
-            (user, now, inventory_number, status_signed_out))
+            (user, human_now, inventory_number, status_signed_out))
     else:
         conn.execute(
             "INSERT INTO devices (inventory_number, user, checked_out_at, checked_in_at, status = ? ) VALUES (?, ?, ?, ?)",
-            (inventory_number, user, now, status_signed_out, "-"))
+            (inventory_number, user, human_now, status_signed_out, "-"))
     conn.commit()
     conn.close()
     return jsonify({
