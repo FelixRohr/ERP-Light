@@ -88,7 +88,7 @@
             const user = document.getElementById(`user_${deviceId}`).value.trim();
             const checkedOutAt = document.getElementById(`checked_out_at_${deviceId}`).value.trim();
             const checkedInAt = document.getElementById(`checked_in_at_${deviceId}`).value.trim();
-        
+            const status = document.getElementById(`status_${deviceId}`)value.trim();
             if (!inventoryNumber) {
                 showStatusMessage("Die Inventarnummer darf nicht leer sein.");
                 return;
@@ -98,7 +98,7 @@
                 const response = await fetch(`/admin/update_device/${deviceId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ inventory_number: inventoryNumber, user: user, checked_out_at: checkedOutAt, checked_in_at: checkedInAt })
+                    body: JSON.stringify({ inventory_number: inventoryNumber, user: user, checked_out_at: checkedOutAt, checked_in_at: checkedInAt, status: status })
                 });
         
                 const result = await response.json();

@@ -548,7 +548,7 @@ def toggle_status(device_id):
 
         # **Hier stellen wir sicher, dass checked_in_at gelöscht wird!**
         conn.execute("UPDATE devices SET user = ?, checked_out_at = ?, checked_in_at = NULL, status = ?, signature = ? WHERE id = ?", 
-                     (user_name, checked_out_at, admin_name, status_signed_out, device_id))
+                     (user_name, checked_out_at, status_signed_out, admin_name, device_id))
         state = status_signed_out
 
     conn.commit()
