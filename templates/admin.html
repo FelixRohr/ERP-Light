@@ -70,7 +70,7 @@
         async function addDevice() {
             const inventoryNumber = document.getElementById("new_inventory_number").value.trim();
             if (!inventoryNumber) {
-                showStatusMessage("Bitte geben Sie eine OPTA (Name) ein.");
+                showStatusMessage("Bitte geben Sie eine Inventar Nummer ein.");
                 return;
             }
             const response = await fetch("/admin/add_device", {
@@ -90,7 +90,7 @@
             const checkedInAt = document.getElementById(`checked_in_at_${deviceId}`).value.trim();
         
             if (!inventoryNumber) {
-                showStatusMessage("Die OPTA (Name) darf nicht leer sein.");
+                showStatusMessage("Die Inventarnummer darf nicht leer sein.");
                 return;
             }
         

@@ -19,10 +19,10 @@ DB_PATH = None
 #DB_DIR ="/home/funk-erp/Documents/ELW-CLOUD/Southside/SSF 2025/Datenbank Funkgeraete"
 
 #working on pi
-# DB_DIR = "/home/funk-erp/"
+DB_DIR = "/home/funk-erp/"
 
 # working on test pc
-DB_DIR = os.path.join("C:\\", "git")
+#DB_DIR = os.path.join("C:\\", "git")
 
 DB_PATH_Backup = (r"SSF2025_Funkgeräte.db")
 
@@ -143,7 +143,7 @@ def export_pdf():
     devices = conn.execute("SELECT * FROM devices").fetchall()
     conn.close()
 
-    data = [["OPTA (Name)", "User", "Ausgeliehen", "Zurückgegeben", "Status", "Unterschrift"]]
+    data = [["ID", "User", "Ausgeliehen", "Zurückgegeben", "Status", "Unterschrift"]]
     for device in devices:
         row = [device["inventory_number"], device["user"], device["checked_out_at"], device["checked_in_at"], device["status"]]
         sig = device["signature"]
@@ -181,7 +181,7 @@ def export_excel():
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     worksheet = workbook.add_worksheet("Geräte")
 
-    headers = ["ID", "OPTA (Name)", "User", "Ausgeliehen am", "Zurückgegeben am", "Unterschrift"]
+    headers = ["ID", "Inventory Number", "User", "Ausgeliehen am", "Zurückgegeben am", "Unterschrift"]
     for col_num, header in enumerate(headers):
         worksheet.write(0, col_num, header)
 
@@ -329,7 +329,7 @@ def check_out():
     status = data.get('status')
     
     if not inventory_number or not borrower or not signature or signature.strip() == "":
-        return jsonify({"error": "OPTA (Name), Borrower und Unterschrift sind erforderlich."}), 400
+        return jsonify({"error": "Inventarnummer, Borrower und Unterschrift sind erforderlich."}), 400
     
     conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
@@ -366,7 +366,7 @@ def check_in():
     inventory_number = data.get('inventory_number')
     
     if not inventory_number:
-        return jsonify({"error": "OPTA (Name) erforderlich"}), 400
+        return jsonify({"error": "Inventarnummer erforderlich"}), 400
 
     conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
@@ -439,7 +439,7 @@ def add_device():
     data = request.json
     inventory_number = data.get('inventory_number')
     if not inventory_number:
-        return jsonify({"error": "OPTA (Name) is required"}), 400
+        return jsonify({"error": "Inventarnummer is required"}), 400
 
     conn = get_db_connection(session["db_path"])
     try:
@@ -460,7 +460,7 @@ def admin_check_out():
     inventory_number = data.get('inventory_number')
     user = data.get('user')
     if not inventory_number or not user:
-        return jsonify({"error": "OPTA (Name) und Benutzer sind erforderlich."}), 400
+        return jsonify({"error": "Inventarnummer und Benutzer sind erforderlich."}), 400
     conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
@@ -493,7 +493,7 @@ def admin_check_in():
     data = request.json
     inventory_number = data.get('inventory_number')
     if not inventory_number:
-        return jsonify({"error": "OPTA (Name) ist erforderlich."}), 400
+        return jsonify({"error": "Inventarnummer ist erforderlich."}), 400
     conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT * FROM devices WHERE inventory_number = ?", (inventory_number,))
     device = cursor.fetchone()
@@ -622,7 +622,7 @@ def delete_device(device_id):
 def device_status():
     inventory_number = request.args.get('inventory_number')
     if not inventory_number:
-        return jsonify({"error": "OPTA (Name) fehlt"}), 400
+        return jsonify({"error": "Inventarnummer fehlt"}), 400
 
     conn = get_db_connection(session["db_path"])
     cursor = conn.execute("SELECT user, status FROM devices WHERE inventory_number = ?", (inventory_number,))

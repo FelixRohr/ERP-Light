@@ -100,16 +100,16 @@
   <!-- Schritt 1: OPTA (Name) scannen -->
   <div class="info-box">
     <p><strong>So funktioniert es:</strong> </p>
-    <p>Scannen Sie die OPTA des Gerätes ein, um den Status des Geräts zu überprüfen.</p>
-    <p><strong>Der entsprechenden QR Code befindet sich auf der linken Seite des Funkterätes!</strong> </p>
+    <p>Scannen Sie die Inventarnummer des Gerätes ein, um den Status des Geräts zu überprüfen.</p>
+    <p><strong>Der entsprechenden QR Code befindet sich auf dem Funkterät!</strong> </p>
     <p>Falls das Gerät verfügbar ist, geben Sie Ihren Namen ein und bestätigen Sie das Ausleihen mit Ihrer Unterschrift.</p>
   </div>
   <div class="step-container">
-    <label for="inventory_number">OPTA (Name) (Scan):</label>
+    <label for="inventory_number">Inventarnummer:</label>
     <input type="text" id="inventory_number" name="inventory_number" onblur="checkDeviceStatus()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); checkDeviceStatus(); }">
-    <button onclick="startQrScan()">📷 QR-Code scannen (mit Kamera)</button>
+    <!--<button onclick="startQrScan()">📷 QR-Code scannen (mit Kamera)</button>
     <video id="qr-video" class="hidden"></video>
-    <canvas id="qr-canvas" class="hidden"></canvas>
+    <canvas id="qr-canvas" class="hidden"></canvas>-->
   </div>
 
   <!-- Schritt 2: Dynamische Anzeige (Rückgabe oder Name eingeben) -->
